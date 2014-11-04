@@ -81,9 +81,6 @@ function DependentArraysObserver(callbacks, cp, instanceMeta, context, propertyN
   // This is used to coalesce item changes from property observers within a
   // single item.
   this.changedItems = {};
-  // This is used to coalesce item changes for multiple items that depend on
-  // some shared state.
-  this.changedItemCount = 0;
 }
 
 function ItemPropertyObserverContext (dependentArray, index, trackedArray) {
@@ -325,35 +322,38 @@ DependentArraysObserver.prototype = {
       };
     }
 
-    ++this.changedItemCount;
     this.changedItems[guid].previousValues[keyName] = get(obj, keyName);
   },
 
   itemPropertyDidChange: function (obj, keyName, array, observerContext) {
-    if (--this.changedItemCount === 0) {
       this.flushChanges();
-    }
   },
+  
+  _flushChanges: function () {
+        var changedItems = this.changedItems;
+        var key, c, changeMeta;
+
+        for (key in changedItems) {
+            c = changedItems[key];
+            if (c.observerContext.destroyed) {
+                continue;
+            }
+
+            this.updateIndexes(c.observerContext.trackedArray, c.observerContext.dependentArray);
+
+            changeMeta = new ChangeMeta(c.array, c.obj, c.observerContext.index, this.instanceMeta.propertyName, this.cp, changedItems.length, c.previousValues);
+            this.setValue(
+                this.callbacks.removedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
+            this.setValue(
+                this.callbacks.addedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
+        }
+
+        this.changedItems = {};
+        this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
+    },
 
   flushChanges: function () {
-    var changedItems = this.changedItems;
-    var key, c, changeMeta;
-
-    for (key in changedItems) {
-      c = changedItems[key];
-      if (c.observerContext.destroyed) { continue; }
-
-      this.updateIndexes(c.observerContext.trackedArray, c.observerContext.dependentArray);
-
-      changeMeta = new ChangeMeta(c.array, c.obj, c.observerContext.index, this.instanceMeta.propertyName, this.cp, changedItems.length, c.previousValues);
-      this.setValue(
-        this.callbacks.removedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
-      this.setValue(
-        this.callbacks.addedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
-    }
-
-    this.changedItems = {};
-    this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
+     Ember.run.once(this, this._flushChanges);
   }
 };
 
