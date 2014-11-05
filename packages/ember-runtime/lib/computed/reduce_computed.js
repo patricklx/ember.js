@@ -484,6 +484,27 @@ function ReduceComputedProperty(options) {
   this.readOnly();
   this.cacheable();
 
+  this.chain = function(method){
+    var chainedCP, dependentKey, args, func;
+
+    dependentKey = [Ember.guidFor(cp)].concat(cp._dependentKeys).join('_');
+    args = [dependentKey].concat(a_slice.call(arguments,1));
+    
+    if (typeof method === 'string') {
+      method = Ember.computed[method];
+    }
+    chainedCP = method.apply(null,args);
+    func = chainedCP.func;
+
+    chainedCP.func = function (propertyName) {
+      if (!chainedCP._hasInstanceMeta(this, propertyName)) {
+        Ember.defineProperty(this, dependentKey, cp);
+      }
+      return func.apply(this, arguments);
+    };
+    return chainedCP;
+  };
+
   this.recomputeOnce = function(propertyName) {
     // What we really want to do is coalesce by <cp, propertyName>.
     // We need a form of `scheduleOnce` that accepts an arbitrary token to
