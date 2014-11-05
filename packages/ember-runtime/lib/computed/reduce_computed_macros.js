@@ -837,3 +837,21 @@ function setupKeyCache(instanceMeta) {
 
   instanceMeta.keyCache = {};
 }
+
+
+/**
+ A computed property that returns a copy of the array with all null and undefined elements removed.
+
+ @method computed.compact
+ @for Ember
+ @param {String} dependentKey
+ @return {Ember.ComputedProperty} a copy of the array with all null and undefined elements removed
+ @since 1.4.0
+*/
+export function compact = function (dependentKey) {
+  var callback;
+  callback = function(item){
+    return item != null;
+  }
+  return filter(dependentKey);
+}
