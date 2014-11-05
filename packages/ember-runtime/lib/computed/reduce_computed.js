@@ -321,23 +321,22 @@ DependentArraysObserver.prototype = {
       };
     }
 
-    ++this.changedItemCount;
     this.changedItems[guid].previousValues[keyName] = get(obj, keyName);
   },
 
   itemPropertyDidChange: function (obj, keyName, array, observerContext) {
-    if (--this.changedItemCount === 0) {
-      this.flushChanges();
-    }
+    this.flushChanges();
   },
 
-  flushChanges: function () {
+  _flushChanges: function () {
     var changedItems = this.changedItems;
     var key, c, changeMeta;
 
     for (key in changedItems) {
       c = changedItems[key];
-      if (c.observerContext.destroyed) { continue; }
+      if (c.observerContext.destroyed) {
+        continue;
+      }
 
       this.updateIndexes(c.observerContext.trackedArray, c.observerContext.dependentArray);
 
@@ -350,6 +349,10 @@ DependentArraysObserver.prototype = {
 
     this.changedItems = {};
     this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
+  },
+
+  flushChanges: function () {
+    run.once(this, this._flushChanges);
   }
 };
 
