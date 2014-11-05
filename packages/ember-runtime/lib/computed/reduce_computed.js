@@ -353,7 +353,7 @@ DependentArraysObserver.prototype = {
     },
 
   flushChanges: function () {
-     Ember.run.once(this, this._flushChanges);
+     run.once(this, this._flushChanges);
   }
 };
 
