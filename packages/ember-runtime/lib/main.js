@@ -148,11 +148,8 @@ EmComputed.filterProperty = filterProperty;
 EmComputed.uniq = uniq;
 EmComputed.union = union;
 EmComputed.intersect = intersect;
-<<<<<<< HEAD
 EmComputed.chain = chain;
-=======
 EmComputed.compact = compact;
->>>>>>> computed-array-operations
 
 Ember.String = EmberStringUtils;
 Ember.Object = EmberObject;

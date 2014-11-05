@@ -866,7 +866,7 @@ function setupKeyCache(instanceMeta) {
  @return {Ember.ComputedProperty} a chain of computed properties
  @since 1.4.0
 */
-export function chain = function (dependentKey, computedChains) {
+export function chain (dependentKey, computedChains) {
   var func, computed, dependantCPs = {};
   forEach(computedChains, function (item) {
     computed = item[0];
@@ -900,7 +900,7 @@ export function chain = function (dependentKey, computedChains) {
  @return {Ember.ComputedProperty} a copy of the array with all null and undefined elements removed
  @since 1.4.0
 */
-export function compact = function (dependentKey) {
+export function compact (dependentKey) {
   var callback;
   callback = function(item){
     return item != null;
