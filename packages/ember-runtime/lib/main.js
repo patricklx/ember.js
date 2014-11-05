@@ -79,7 +79,8 @@ import {
   uniq,
   union,
   intersect,
-  chain
+  chain,
+  compact
 } from 'ember-runtime/computed/reduce_computed_macros';
 
 import ArrayController from 'ember-runtime/controllers/array_controller';
@@ -147,7 +148,11 @@ EmComputed.filterProperty = filterProperty;
 EmComputed.uniq = uniq;
 EmComputed.union = union;
 EmComputed.intersect = intersect;
+<<<<<<< HEAD
 EmComputed.chain = chain;
+=======
+EmComputed.compact = compact;
+>>>>>>> computed-array-operations
 
 Ember.String = EmberStringUtils;
 Ember.Object = EmberObject;
