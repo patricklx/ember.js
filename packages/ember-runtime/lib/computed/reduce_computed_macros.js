@@ -837,3 +837,56 @@ function setupKeyCache(instanceMeta) {
 
   instanceMeta.keyCache = {};
 }
+
+
+/**
+ A computed property that chains all given computed properties
+ Example
+
+  ```javascript
+  Ember.computed.chain('content', [    
+    [Ember.computed.mapBy, 'key'],
+    [Ember.computed.filter, callback], //e.g. remove undefined/null
+	[Ember.computed.sum],
+	[customComputed]
+  ]);
+  
+  //or
+  //looks up on Ember.computed
+  Ember.computed.chain('content', [    
+    ['mapBy', 'key'],
+    ['filter', callback],
+	['sum'],
+  ]);
+  ```
+
+ @method computed.chain
+ @for Ember
+ @param {String} dependentKey
+ @return {Ember.ComputedProperty} a chain of computed properties
+ @since 1.4.0
+*/
+export function chain = function (dependentKey, computedChains) {
+  var func, computed, dependantCPs = {};
+  forEach(computedChains, function (item) {
+    computed = item[0];
+    var args = [dependentKey].concat(item.slice(1));
+    if (typeof  computed == "string") {
+      computed = Ember.computed[computed];
+    }
+    computed = computed.apply(null, args);
+    dependentKey = [Ember.guidFor(computed)].concat(computed._dependentKeys).join('_');
+    dependantCPs[dependentKey] = computed;
+  }, this);
+  func = computed.func;
+  computed.func = function (propertyName) {
+    if (!computed._hasInstanceMeta(this, propertyName)) {
+      for (var k in dependantCPs) {
+        var cp = dependantCPs[k];
+        Ember.defineProperty(this, k, cp);
+      }
+    }
+    return func.apply(this, arguments);
+  };
+  return computed;
+}
