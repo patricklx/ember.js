@@ -19,7 +19,6 @@ import {
 } from 'ember-metal/computed';
 import { create as o_create } from 'ember-metal/platform';
 import { forEach } from 'ember-metal/enumerable_utils';
-import TrackedArray from 'ember-runtime/system/tracked_array';
 import EmberArray from 'ember-runtime/mixins/array';
 import run from 'ember-metal/run_loop';
 import { isArray } from 'ember-metal/utils';
@@ -63,10 +62,6 @@ function DependentArraysObserver(callbacks, cp, instanceMeta, context, propertyN
   // getting the dependentKey.
   this.dependentKeysByGuid = {};
 
-  // a map of dependent array guids -> TrackedArray instances.  We use
-  // this to lazily recompute indexes for item property observers.
-  this.trackedArraysByGuid = {};
-
   // We suspend observers to ignore replacements from `reset` when totally
   // recomputing.  Unfortunately we cannot properly suspend the observers
   // because we only have the key; instead we make the observers no-ops
@@ -75,17 +70,18 @@ function DependentArraysObserver(callbacks, cp, instanceMeta, context, propertyN
   // This is used to coalesce item changes from property observers within a
   // single item.
   this.changedItems = {};
+
+  this.contextByGuid = {};
 }
 
-function ItemPropertyObserverContext (dependentArray, index, trackedArray) {
-  Ember.assert('Internal error: trackedArray is null or undefined', trackedArray);
+function ItemPropertyObserverContext (dependentArray, index) {
 
   this.dependentArray = dependentArray;
   this.index = index;
   this.item = dependentArray.objectAt(index);
-  this.trackedArray = trackedArray;
   this.observer = null;
   this.destroyed = false;
+
 }
 
 DependentArraysObserver.prototype = {
@@ -110,18 +106,20 @@ DependentArraysObserver.prototype = {
     });
 
     if (this.cp._itemPropertyKeys[dependentKey]) {
-      this.setupPropertyObservers(dependentKey, this.cp._itemPropertyKeys[dependentKey]);
+      var observers;
+      observers = this.setupPropertyObservers(dependentKey, this.cp._itemPropertyKeys[dependentKey]);
+      this.contextByGuid[guidFor(dependentArray)] = observers;
     }
   },
 
-  teardownObservers: function (dependentArray, dependentKey) {
+  teardownObservers: function (previousDependentArray, dependentKey) {
     var itemPropertyKeys = this.cp._itemPropertyKeys[dependentKey] || [];
 
-    delete this.dependentKeysByGuid[guidFor(dependentArray)];
+    delete this.dependentKeysByGuid[guidFor(previousDependentArray)];
 
-    this.teardownPropertyObservers(dependentKey, itemPropertyKeys);
+    this.teardownPropertyObservers(previousDependentArray, dependentKey, itemPropertyKeys);
 
-    dependentArray.removeArrayObserver(this, {
+    previousDependentArray.removeArrayObserver(this, {
       willChange: 'dependentArrayWillChange',
       didChange: 'dependentArrayDidChange'
     });
@@ -139,42 +137,40 @@ DependentArraysObserver.prototype = {
     var length = get(dependentArray, 'length');
     var observerContexts = new Array(length);
 
-    this.resetTransformations(dependentKey, observerContexts);
-
     forEach(dependentArray, function (item, index) {
-      var observerContext = this.createPropertyObserverContext(dependentArray, index, this.trackedArraysByGuid[dependentKey]);
+      var observerContext = this.createPropertyObserverContext(dependentArray, index);
       observerContexts[index] = observerContext;
 
       forEach(itemPropertyKeys, function (propertyKey) {
         addObserver(item, propertyKey, this, observerContext.observer);
       }, this);
     }, this);
+
+    return observerContexts;
   },
 
-  teardownPropertyObservers: function (dependentKey, itemPropertyKeys) {
+  teardownPropertyObservers: function (previousDependentArray, dependentKey, itemPropertyKeys) {
     var dependentArrayObserver = this;
-    var trackedArray = this.trackedArraysByGuid[dependentKey];
-    var observer, item;
+    var observer, item, observerContexts;
 
-    if (!trackedArray) { return; }
+    if (!previousDependentArray) { return; }
 
-    trackedArray.apply(function (observerContexts, offset, operation) {
-      if (operation === TrackedArray.DELETE) { return; }
+    observerContexts = this.contextByGuid[guidFor(previousDependentArray)];
+    delete this.contextByGuid[guidFor(previousDependentArray)];
 
-      forEach(observerContexts, function (observerContext) {
-        observerContext.destroyed = true;
-        observer = observerContext.observer;
-        item = observerContext.item;
+    forEach(observerContexts, function (observerContext) {
+      observerContext.destroyed = true;
+      observer = observerContext.observer;
+      item = observerContext.item;
 
-        forEach(itemPropertyKeys, function (propertyKey) {
-          removeObserver(item, propertyKey, dependentArrayObserver, observer);
-        });
+      forEach(itemPropertyKeys, function (propertyKey) {
+        removeObserver(item, propertyKey, dependentArrayObserver, observer);
       });
     });
   },
 
-  createPropertyObserverContext: function (dependentArray, index, trackedArray) {
-    var observerContext = new ItemPropertyObserverContext(dependentArray, index, trackedArray);
+  createPropertyObserverContext: function (dependentArray, index) {
+    var observerContext = new ItemPropertyObserverContext(dependentArray, index);
 
     this.createPropertyObserver(observerContext);
 
@@ -187,48 +183,6 @@ DependentArraysObserver.prototype = {
     observerContext.observer = function (obj, keyName) {
       return dependentArrayObserver.itemPropertyDidChange(obj, keyName, observerContext.dependentArray, observerContext);
     };
-  },
-
-  resetTransformations: function (dependentKey, observerContexts) {
-    this.trackedArraysByGuid[dependentKey] = new TrackedArray(observerContexts);
-  },
-
-  trackAdd: function (dependentKey, index, newItems) {
-    var trackedArray = this.trackedArraysByGuid[dependentKey];
-
-    if (trackedArray) {
-      trackedArray.addItems(index, newItems);
-    }
-  },
-
-  trackRemove: function (dependentKey, index, removedCount) {
-    var trackedArray = this.trackedArraysByGuid[dependentKey];
-
-    if (trackedArray) {
-      return trackedArray.removeItems(index, removedCount);
-    }
-
-    return [];
-  },
-
-  updateIndexes: function (trackedArray, array) {
-    var length = get(array, 'length');
-    // OPTIMIZE: we could stop updating once we hit the object whose observer
-    // fired; ie partially apply the transformations
-    trackedArray.apply(function (observerContexts, offset, operation, operationIndex) {
-      // we don't even have observer contexts for removed items, even if we did,
-      // they no longer have any index in the array
-      if (operation === TrackedArray.DELETE) { return; }
-      if (operationIndex === 0 && operation === TrackedArray.RETAIN && observerContexts.length === length && offset === 0) {
-        // If we update many items we don't want to walk the array each time: we
-        // only need to update the indexes at most once per run loop.
-        return;
-      }
-
-      forEach(observerContexts, function (context, index) {
-        context.index = index + offset;
-      });
-    });
   },
 
   dependentArrayWillChange: function (dependentArray, index, removedCount, addedCount) {
@@ -244,7 +198,7 @@ DependentArraysObserver.prototype = {
     var normalizedRemoveCount = normalizeRemoveCount(normalizedIndex, length, removedCount);
     var item, itemIndex, sliceIndex, observerContexts;
 
-    observerContexts = this.trackRemove(dependentKey, normalizedIndex, normalizedRemoveCount);
+    observerContexts = this.contextByGuid[guid].splice(normalizedIndex, removedCount);
 
     function removeObservers(propertyKey) {
       observerContexts[sliceIndex].destroyed = true;
@@ -282,8 +236,7 @@ DependentArraysObserver.prototype = {
 
     forEach(dependentArray.slice(normalizedIndex, endIndex), function (item, sliceIndex) {
       if (itemPropertyKeys) {
-        observerContext = this.createPropertyObserverContext(dependentArray, normalizedIndex + sliceIndex,
-          this.trackedArraysByGuid[dependentKey]);
+        observerContext = this.createPropertyObserverContext(dependentArray, normalizedIndex + sliceIndex);
         observerContexts[sliceIndex] = observerContext;
 
         forEach(itemPropertyKeys, function (propertyKey) {
@@ -296,7 +249,6 @@ DependentArraysObserver.prototype = {
         this.instanceMeta.context, this.getValue(), item, changeMeta, this.instanceMeta.sugarMeta));
     }, this);
     this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
-    this.trackAdd(dependentKey, normalizedIndex, observerContexts);
     this.notifyPropertyChangeIfRequired();
   },
 
@@ -322,8 +274,6 @@ DependentArraysObserver.prototype = {
         if (c.observerContext.destroyed) {
             continue;
         }
-
-        this.updateIndexes(c.observerContext.trackedArray, c.observerContext.dependentArray);
 
         changeMeta = new ChangeMeta(c.array, c.obj, c.observerContext.index, this.instanceMeta.propertyName, this.cp, changedItems.length);
         this.setValue(
@@ -408,7 +358,7 @@ ReduceComputedPropertyInstanceMeta.prototype = {
   value: undefined,
   valueChanged: false,
 
-  shouldRecomputed: function () {
+  shouldRecompute: function () {
     return this.value === undefined;
   },
 
@@ -541,7 +491,7 @@ function ReduceComputedProperty(options) {
       }, this);
       recompute.call(this, propertyName);
     }
-    if(cp._instanceMeta(this, propertyName).value === undefined){
+    if(cp._instanceMeta(this, propertyName).shouldRecompute()){
       recompute.call(this, propertyName);
     }
     return cp._instanceMeta(this, propertyName).getValue();
