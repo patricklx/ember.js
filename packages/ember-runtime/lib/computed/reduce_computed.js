@@ -12,9 +12,7 @@ import {
 import expandProperties from 'ember-metal/expand_properties';
 import {
   addObserver,
-  removeObserver,
-  addBeforeObserver,
-  removeBeforeObserver
+  removeObserver
 } from 'ember-metal/observer';
 import {
   ComputedProperty
@@ -86,7 +84,6 @@ function ItemPropertyObserverContext (dependentArray, index, trackedArray) {
   this.index = index;
   this.item = dependentArray.objectAt(index);
   this.trackedArray = trackedArray;
-  this.beforeObserver = null;
   this.observer = null;
   this.destroyed = false;
 }
@@ -98,6 +95,10 @@ DependentArraysObserver.prototype = {
 
   getValue: function () {
     return this.instanceMeta.getValue();
+  },
+
+  notifyPropertyChangeIfRequired: function () {
+    this.instanceMeta.notifyPropertyChangeIfRequired();
   },
 
   setupObservers: function (dependentArray, dependentKey) {
@@ -145,7 +146,6 @@ DependentArraysObserver.prototype = {
       observerContexts[index] = observerContext;
 
       forEach(itemPropertyKeys, function (propertyKey) {
-        addBeforeObserver(item, propertyKey, this, observerContext.beforeObserver);
         addObserver(item, propertyKey, this, observerContext.observer);
       }, this);
     }, this);
@@ -154,7 +154,7 @@ DependentArraysObserver.prototype = {
   teardownPropertyObservers: function (dependentKey, itemPropertyKeys) {
     var dependentArrayObserver = this;
     var trackedArray = this.trackedArraysByGuid[dependentKey];
-    var beforeObserver, observer, item;
+    var observer, item;
 
     if (!trackedArray) { return; }
 
@@ -163,12 +163,10 @@ DependentArraysObserver.prototype = {
 
       forEach(observerContexts, function (observerContext) {
         observerContext.destroyed = true;
-        beforeObserver = observerContext.beforeObserver;
         observer = observerContext.observer;
         item = observerContext.item;
 
         forEach(itemPropertyKeys, function (propertyKey) {
-          removeBeforeObserver(item, propertyKey, dependentArrayObserver, beforeObserver);
           removeObserver(item, propertyKey, dependentArrayObserver, observer);
         });
       });
@@ -185,10 +183,6 @@ DependentArraysObserver.prototype = {
 
   createPropertyObserver: function (observerContext) {
     var dependentArrayObserver = this;
-
-    observerContext.beforeObserver = function (obj, keyName) {
-      return dependentArrayObserver.itemPropertyWillChange(obj, keyName, observerContext.dependentArray, observerContext);
-    };
 
     observerContext.observer = function (obj, keyName) {
       return dependentArrayObserver.itemPropertyDidChange(obj, keyName, observerContext.dependentArray, observerContext);
@@ -254,7 +248,6 @@ DependentArraysObserver.prototype = {
 
     function removeObservers(propertyKey) {
       observerContexts[sliceIndex].destroyed = true;
-      removeBeforeObserver(item, propertyKey, this, observerContexts[sliceIndex].beforeObserver);
       removeObserver(item, propertyKey, this, observerContexts[sliceIndex].observer);
     }
 
@@ -271,6 +264,7 @@ DependentArraysObserver.prototype = {
         this.instanceMeta.context, this.getValue(), item, changeMeta, this.instanceMeta.sugarMeta));
     }
     this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
+    this.notifyPropertyChangeIfRequired();
   },
 
   dependentArrayDidChange: function (dependentArray, index, removedCount, addedCount) {
@@ -293,7 +287,6 @@ DependentArraysObserver.prototype = {
         observerContexts[sliceIndex] = observerContext;
 
         forEach(itemPropertyKeys, function (propertyKey) {
-          addBeforeObserver(item, propertyKey, this, observerContext.beforeObserver);
           addObserver(item, propertyKey, this, observerContext.observer);
         }, this);
       }
@@ -304,52 +297,48 @@ DependentArraysObserver.prototype = {
     }, this);
     this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
     this.trackAdd(dependentKey, normalizedIndex, observerContexts);
+    this.notifyPropertyChangeIfRequired();
   },
 
-  itemPropertyWillChange: function (obj, keyName, array, observerContext) {
+  itemPropertyDidChange: function (obj, keyName, array, observerContext) {
     var guid = guidFor(obj);
 
     if (!this.changedItems[guid]) {
       this.changedItems[guid] = {
         array: array,
         observerContext: observerContext,
-        obj: obj,
-        previousValues: {}
+        obj: obj
       };
     }
-
-    this.changedItems[guid].previousValues[keyName] = get(obj, keyName);
-  },
-
-  itemPropertyDidChange: function (obj, keyName, array, observerContext) {
-      this.flushChanges();
+    this.flushChanges();
   },
   
   _flushChanges: function () {
-        var changedItems = this.changedItems;
-        var key, c, changeMeta;
+    var changedItems = this.changedItems;
+    var key, c, changeMeta;
 
-        for (key in changedItems) {
-            c = changedItems[key];
-            if (c.observerContext.destroyed) {
-                continue;
-            }
-
-            this.updateIndexes(c.observerContext.trackedArray, c.observerContext.dependentArray);
-
-            changeMeta = new ChangeMeta(c.array, c.obj, c.observerContext.index, this.instanceMeta.propertyName, this.cp, changedItems.length, c.previousValues);
-            this.setValue(
-                this.callbacks.removedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
-            this.setValue(
-                this.callbacks.addedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
+    for (key in changedItems) {
+        c = changedItems[key];
+        if (c.observerContext.destroyed) {
+            continue;
         }
 
-        this.changedItems = {};
-        this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
-    },
+        this.updateIndexes(c.observerContext.trackedArray, c.observerContext.dependentArray);
+
+        changeMeta = new ChangeMeta(c.array, c.obj, c.observerContext.index, this.instanceMeta.propertyName, this.cp, changedItems.length);
+        this.setValue(
+            this.callbacks.removedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
+        this.setValue(
+            this.callbacks.addedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
+    }
+
+    this.changedItems = {};
+    this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
+    this.notifyPropertyChangeIfRequired();
+  },
 
   flushChanges: function () {
-    run.once(this, this._flushChanges);
+    this.update = run.once(this, this._flushChanges);
   }
 };
 
@@ -367,18 +356,13 @@ function normalizeRemoveCount(index, length, removedCount) {
   return Math.min(removedCount, length - index);
 }
 
-function ChangeMeta(dependentArray, item, index, propertyName, property, changedCount, previousValues){
+function ChangeMeta(dependentArray, item, index, propertyName, property, changedCount){
   this.arrayChanged = dependentArray;
   this.index = index;
   this.item = item;
   this.propertyName = propertyName;
   this.property = property;
   this.changedCount = changedCount;
-
-  if (previousValues) {
-    // previous values only available for item property changes
-    this.previousValues = previousValues;
-  }
 }
 
 function addItems(dependentArray, callbacks, cp, propertyName, meta) {
@@ -415,7 +399,6 @@ function partiallyRecomputeFor(obj, dependentKey) {
 function ReduceComputedPropertyInstanceMeta(context, propertyName, initialValue) {
   this.context = context;
   this.propertyName = propertyName;
-  this.cache = metaFor(context).cache;
   this.dependentArrays = {};
   this.sugarMeta = {};
   this.initialValue = initialValue;
@@ -423,6 +406,21 @@ function ReduceComputedPropertyInstanceMeta(context, propertyName, initialValue)
 
 ReduceComputedPropertyInstanceMeta.prototype = {
   value: undefined,
+  valueChanged: false,
+
+  shouldRecomputed: function () {
+    return this.value === undefined;
+  },
+
+  notifyPropertyChangeIfRequired: function () {
+    var didChange = this.valueChanged;
+    if (didChange){
+      this.valueChanged = false;
+      propertyWillChange(this.context, this.property);
+      propertyDidChange(this.context, this.property);
+    }
+  },
+
   getValue: function () {
     var value = this.value;
 
@@ -433,22 +431,15 @@ ReduceComputedPropertyInstanceMeta.prototype = {
     }
   },
 
-  setValue: function(newValue, triggerObservers) {
+  setValue: function(newValue) {
     // This lets sugars force a recomputation, handy for very simple
     // implementations of eg max.
     if (newValue === this.value) {
       return;
     }
 
-    if (triggerObservers) {
-      propertyWillChange(this.context, this.propertyName);
-    }
-
     this.value = newValue;
-
-    if (triggerObservers) {
-      propertyDidChange(this.context, this.propertyName);
-    }
+    this.valueChanged = true;
   }
 };
 
@@ -721,14 +712,6 @@ ReduceComputedProperty.prototype.property = function () {
   For property changes triggered on an item property change (when
   depKey is something like `someArray.@each.someProperty`),
   `changeMeta` will also contain the following property:
-
-    - `previousValues` an object whose keys are the properties that changed on
-    the item, and whose values are the item's previous values.
-
-  `previousValues` is important Ember coalesces item property changes via
-  Ember.run.once. This means that by the time removedItem gets called, item has
-  the new values, but you may need the previous value (eg for sorting &
-  filtering).
 
   `instanceMeta` - An object that can be used to store meta
   information needed for calculating your computed. For example a
