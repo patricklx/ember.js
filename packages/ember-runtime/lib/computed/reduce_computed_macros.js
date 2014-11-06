@@ -849,9 +849,8 @@ function setupKeyCache(instanceMeta) {
  @since 1.4.0
 */
 export function compact = function (dependentKey) {
-  var callback;
-  callback = function(item){
+  var callback = function(item){
     return item != null;
   }
-  return filter(dependentKey);
+  return filter(dependentKey, callback);
 }
