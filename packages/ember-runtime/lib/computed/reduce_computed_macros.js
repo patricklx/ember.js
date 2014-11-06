@@ -905,5 +905,5 @@ export function compact (dependentKey) {
   callback = function(item){
     return item != null;
   }
-  return filter(dependentKey);
+  return filter(dependentKey, callback);
 };
