@@ -14,8 +14,14 @@ function ArrayComputedProperty() {
 
 ArrayComputedProperty.prototype = o_create(ReduceComputedProperty.prototype);
 
-ArrayComputedProperty.prototype.initialValue = function () {
-  return Ember.A();
+ArrayComputedProperty.prototype.initialValue = function (context) {
+  if (typeof this.options.initialValue === 'function') {
+    return this.options.initialValue.call(context);
+  }
+  else {
+    return Ember.A();
+  }
+
 };
 
 ArrayComputedProperty.prototype.resetValue = function (array) {

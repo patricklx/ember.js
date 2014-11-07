@@ -71,17 +71,15 @@ function DependentArraysObserver(callbacks, cp, instanceMeta, context, propertyN
   // single item.
   this.changedItems = {};
 
-  this.contextByGuid = {};
+  this.observersByGuid = {};
 }
 
 function ItemPropertyObserverContext (dependentArray, index) {
-
   this.dependentArray = dependentArray;
   this.index = index;
   this.item = dependentArray.objectAt(index);
   this.observer = null;
   this.destroyed = false;
-
 }
 
 DependentArraysObserver.prototype = {
@@ -106,20 +104,18 @@ DependentArraysObserver.prototype = {
     });
 
     if (this.cp._itemPropertyKeys[dependentKey]) {
-      var observers;
-      observers = this.setupPropertyObservers(dependentKey, this.cp._itemPropertyKeys[dependentKey]);
-      this.contextByGuid[guidFor(dependentArray)] = observers;
+      this.setupPropertyObservers(dependentKey, this.cp._itemPropertyKeys[dependentKey]);
     }
   },
 
-  teardownObservers: function (previousDependentArray, dependentKey) {
+  teardownObservers: function (dependentArray, dependentKey) {
     var itemPropertyKeys = this.cp._itemPropertyKeys[dependentKey] || [];
 
-    delete this.dependentKeysByGuid[guidFor(previousDependentArray)];
+    delete this.dependentKeysByGuid[guidFor(dependentArray)];
 
-    this.teardownPropertyObservers(previousDependentArray, dependentKey, itemPropertyKeys);
+    this.teardownPropertyObservers(dependentArray, dependentKey, itemPropertyKeys);
 
-    previousDependentArray.removeArrayObserver(this, {
+    dependentArray.removeArrayObserver(this, {
       willChange: 'dependentArrayWillChange',
       didChange: 'dependentArrayDidChange'
     });
@@ -135,7 +131,10 @@ DependentArraysObserver.prototype = {
   setupPropertyObservers: function (dependentKey, itemPropertyKeys) {
     var dependentArray = get(this.instanceMeta.context, dependentKey);
     var length = get(dependentArray, 'length');
-    var observerContexts = new Array(length);
+    var observerContexts;
+    this.observersByGuid[guidFor(dependentArray)] = observerContexts = new Array(length);
+
+    this.resetTransformations(dependentKey, observerContexts);
 
     forEach(dependentArray, function (item, index) {
       var observerContext = this.createPropertyObserverContext(dependentArray, index);
@@ -145,18 +144,14 @@ DependentArraysObserver.prototype = {
         addObserver(item, propertyKey, this, observerContext.observer);
       }, this);
     }, this);
-
-    return observerContexts;
   },
 
-  teardownPropertyObservers: function (previousDependentArray, dependentKey, itemPropertyKeys) {
+  teardownPropertyObservers: function (dependentArray, dependentKey, itemPropertyKeys) {
     var dependentArrayObserver = this;
-    var observer, item, observerContexts;
+    var observerContexts = this.observersByGuid[guidFor(dependentArray)];
+    var observer, item;
 
-    if (!previousDependentArray) { return; }
-
-    observerContexts = this.contextByGuid[guidFor(previousDependentArray)];
-    delete this.contextByGuid[guidFor(previousDependentArray)];
+    delete this.observersByGuid[guidFor(dependentArray)];
 
     forEach(observerContexts, function (observerContext) {
       observerContext.destroyed = true;
@@ -169,8 +164,8 @@ DependentArraysObserver.prototype = {
     });
   },
 
-  createPropertyObserverContext: function (dependentArray, index) {
-    var observerContext = new ItemPropertyObserverContext(dependentArray, index);
+  createPropertyObserverContext: function (dependentArray, index, trackedArray) {
+    var observerContext = new ItemPropertyObserverContext(dependentArray, index, trackedArray);
 
     this.createPropertyObserver(observerContext);
 
@@ -185,40 +180,38 @@ DependentArraysObserver.prototype = {
     };
   },
 
+  resetTransformations: function (dependentKey, observerContexts) {
+    this.trackedArraysByGuid[dependentKey] = new TrackedArray(observerContexts);
+  },
+
   dependentArrayWillChange: function (dependentArray, index, removedCount, addedCount) {
     if (this.suspended) { return; }
 
     var removedItem = this.callbacks.removedItem;
-    var changeMeta;
+    var changeMeta = {};
     var guid = guidFor(dependentArray);
     var dependentKey = this.dependentKeysByGuid[guid];
     var itemPropertyKeys = this.cp._itemPropertyKeys[dependentKey] || [];
     var length = get(dependentArray, 'length');
-    var normalizedIndex = normalizeIndex(index, length, 0);
-    var normalizedRemoveCount = normalizeRemoveCount(normalizedIndex, length, removedCount);
-    var item, itemIndex, sliceIndex, observerContexts;
+    var item, itemIndex, observerContexts;
 
-    observerContexts = this.contextByGuid[guid].splice(normalizedIndex, removedCount);
+    observerContexts = this.observersByGuid[guid].splice(index, removedCount);
 
     function removeObservers(propertyKey) {
-      observerContexts[sliceIndex].destroyed = true;
-      removeObserver(item, propertyKey, this, observerContexts[sliceIndex].observer);
+      observerContexts[itemIndex].destroyed = true;
+      removeObserver(item, propertyKey, this, observerContexts[itemIndex].observer);
     }
 
-    for (sliceIndex = normalizedRemoveCount - 1; sliceIndex >= 0; --sliceIndex) {
-      itemIndex = normalizedIndex + sliceIndex;
-      if (itemIndex >= length) { break; }
+    for (itemIndex = index; itemIndex < index + removedCount; itemIndex++) {
 
       item = dependentArray.objectAt(itemIndex);
 
       forEach(itemPropertyKeys, removeObservers, this);
 
-      changeMeta = new ChangeMeta(dependentArray, item, itemIndex, this.instanceMeta.propertyName, this.cp, normalizedRemoveCount);
+      changeMeta = ChangeMeta.call(changeMeta, dependentArray, item, itemIndex, this.instanceMeta.propertyName, this.cp, normalizedRemoveCount);
       this.setValue(removedItem.call(
         this.instanceMeta.context, this.getValue(), item, changeMeta, this.instanceMeta.sugarMeta));
     }
-    this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
-    this.notifyPropertyChangeIfRequired();
   },
 
   dependentArrayDidChange: function (dependentArray, index, removedCount, addedCount) {
@@ -230,25 +223,27 @@ DependentArraysObserver.prototype = {
     var observerContexts = new Array(addedCount);
     var itemPropertyKeys = this.cp._itemPropertyKeys[dependentKey];
     var length = get(dependentArray, 'length');
-    var normalizedIndex = normalizeIndex(index, length, addedCount);
-    var endIndex = normalizedIndex + addedCount;
-    var changeMeta, observerContext;
+    var changeMeta = {}, observerContext, itemIndex, item;
 
-    forEach(dependentArray.slice(normalizedIndex, endIndex), function (item, sliceIndex) {
+    for (itemIndex = index; itemIndex < index + addedCount; itemIndex++) {
       if (itemPropertyKeys) {
-        observerContext = this.createPropertyObserverContext(dependentArray, normalizedIndex + sliceIndex);
-        observerContexts[sliceIndex] = observerContext;
+        observerContext = this.createPropertyObserverContext(dependentArray, itemIndex);
+        observerContexts[itemIndex] = observerContext;
+        item = dependentArray.objectA(itemIndex);
 
         forEach(itemPropertyKeys, function (propertyKey) {
           addObserver(item, propertyKey, this, observerContext.observer);
         }, this);
       }
 
-      changeMeta = new ChangeMeta(dependentArray, item, normalizedIndex + sliceIndex, this.instanceMeta.propertyName, this.cp, addedCount);
+      ChangeMeta.call(changeMeta, dependentArray, item, normalizedIndex + itemIndex, this.instanceMeta.propertyName, this.cp, addedCount);
       this.setValue(addedItem.call(
         this.instanceMeta.context, this.getValue(), item, changeMeta, this.instanceMeta.sugarMeta));
-    }, this);
-    this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
+    }
+
+    this.setValue( this.callbacks.flushedChanges.call(
+      this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta)
+    );
     this.notifyPropertyChangeIfRequired();
   },
 
@@ -262,49 +257,26 @@ DependentArraysObserver.prototype = {
         obj: obj
       };
     }
-    this.flushChanges();
+    this.update = run.once(this, this._flushChanges);
   },
-  
+
   _flushChanges: function () {
     var changedItems = this.changedItems;
-    var key, c, changeMeta;
+    var key, c, changeMeta = {};
 
     for (key in changedItems) {
         c = changedItems[key];
-        if (c.observerContext.destroyed) {
-            continue;
-        }
 
-        changeMeta = new ChangeMeta(c.array, c.obj, c.observerContext.index, this.instanceMeta.propertyName, this.cp, changedItems.length);
+        ChangeMeta.call(changeMeta, c.array, c.obj, -1, this.instanceMeta.propertyName, this.cp, changedItems.length);
         this.setValue(
-            this.callbacks.removedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
-        this.setValue(
-            this.callbacks.addedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
+            this.callbacks.itemChanged.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
     }
 
     this.changedItems = {};
     this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
     this.notifyPropertyChangeIfRequired();
-  },
-
-  flushChanges: function () {
-    this.update = run.once(this, this._flushChanges);
   }
 };
-
-function normalizeIndex(index, length, newItemsOffset) {
-  if (index < 0) {
-    return Math.max(0, length + index);
-  } else if (index < length) {
-    return index;
-  } else /* index > length */ {
-    return Math.min(length - newItemsOffset, index);
-  }
-}
-
-function normalizeRemoveCount(index, length, removedCount) {
-  return Math.min(removedCount, length - index);
-}
 
 function ChangeMeta(dependentArray, item, index, propertyName, property, changedCount){
   this.arrayChanged = dependentArray;
@@ -313,14 +285,6 @@ function ChangeMeta(dependentArray, item, index, propertyName, property, changed
   this.propertyName = propertyName;
   this.property = property;
   this.changedCount = changedCount;
-}
-
-function addItems(dependentArray, callbacks, cp, propertyName, meta) {
-  forEach(dependentArray, function (item, index) {
-    meta.setValue( callbacks.addedItem.call(
-      this, meta.getValue(), item, new ChangeMeta(dependentArray, item, index, propertyName, cp, dependentArray.length), meta.sugarMeta));
-  }, this);
-  callbacks.flushedChanges.call(this, meta.getValue(), meta.sugarMeta);
 }
 
 function reset(cp, propertyName) {
@@ -427,7 +391,6 @@ function ReduceComputedProperty(options) {
 
   var recompute = function(propertyName) {
     var meta = cp._instanceMeta(this, propertyName);
-    var callbacks = cp._callbacks();
 
     reset.call(this, cp, propertyName);
 
@@ -465,16 +428,6 @@ function ReduceComputedProperty(options) {
         }
       }, this);
     }, this);
-
-    forEach(cp._dependentKeys, function(dependentKey) {
-      if (!partiallyRecomputeFor(this, dependentKey)) { return; }
-
-      var dependentArray = get(this, dependentKey);
-
-      if (dependentArray) {
-        addItems.call(this, dependentArray, callbacks, cp, propertyName, meta);
-      }
-    }, this);
   };
 
 
@@ -511,6 +464,7 @@ ReduceComputedProperty.prototype._callbacks = function () {
     this.callbacks = {
       removedItem: options.removedItem || defaultCallback,
       addedItem: options.addedItem || defaultCallback,
+      itemChanged: options.itemChanged || defaultCallback,
       flushedChanges: options.flushedChanges || defaultCallback
     };
   }
@@ -527,16 +481,16 @@ ReduceComputedProperty.prototype._instanceMeta = function (context, propertyName
   var meta = cacheMeta[propertyName];
 
   if (!meta) {
-    meta = cacheMeta[propertyName] = new ReduceComputedPropertyInstanceMeta(context, propertyName, this.initialValue());
+    meta = cacheMeta[propertyName] = new ReduceComputedPropertyInstanceMeta(context, propertyName, this.initialValue(context));
     meta.dependentArraysObserver = new DependentArraysObserver(this._callbacks(), this, meta, context, propertyName, meta.sugarMeta);
   }
 
   return meta;
 };
 
-ReduceComputedProperty.prototype.initialValue = function () {
+ReduceComputedProperty.prototype.initialValue = function (context) {
   if (typeof this.options.initialValue === 'function') {
-    return this.options.initialValue();
+    return this.options.initialValue.call(context, this.options);
   }
   else {
     return this.options.initialValue;

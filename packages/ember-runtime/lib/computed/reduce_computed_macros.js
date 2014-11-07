@@ -36,7 +36,9 @@ var a_slice = [].slice;
 
 export function sum(dependentKey){
   return reduceComputed(dependentKey, {
-    initialValue: 0,
+    initialValue: function (options) {
+      return this.get(dependentKey).reduce(options.addedItem);
+    },
 
     addedItem: function(accumulatedValue, item, changeMeta, instanceMeta){
       return accumulatedValue + item;
@@ -83,7 +85,9 @@ export function sum(dependentKey){
 */
 export function max(dependentKey) {
   return reduceComputed(dependentKey, {
-    initialValue: -Infinity,
+    initialValue: function(options){
+      return this.get('dependentKey').reduce(options.addedItem);
+    },
 
     addedItem: function (accumulatedValue, item, changeMeta, instanceMeta) {
       return Math.max(accumulatedValue, item);
@@ -132,7 +136,9 @@ export function max(dependentKey) {
 */
 export function min(dependentKey) {
   return reduceComputed(dependentKey, {
-    initialValue: Infinity,
+    initialValue: function(options){
+      return this.get('dependentKey').reduce(options.addedItem);
+    },
 
     addedItem: function (accumulatedValue, item, changeMeta, instanceMeta) {
       return Math.min(accumulatedValue, item);
@@ -181,14 +187,33 @@ export function min(dependentKey) {
 */
 export function map(dependentKey, callback) {
   var options = {
+
+    initialize: function (array, changeMeta, instanceMeta) {
+      instanceMeta.pendingRemove = {}
+    },
+
+    initialValue: function (options) {
+      run.once(function () {
+
+      })
+      return this.get(dependentKey).map(callback);
+    },
+
     addedItem: function(array, item, changeMeta, instanceMeta) {
+      if(instanceMeta.pendingRemove[changeMeta.index]){
+        delete instanceMeta.pendingRemove[changeMeta.index]
+      }
       var mapped = callback.call(this, item, changeMeta.index);
       array.insertAt(changeMeta.index, mapped);
       return array;
     },
     removedItem: function(array, item, changeMeta, instanceMeta) {
-      array.removeAt(changeMeta.index, 1);
+      instanceMeta.pendingRemove[changeMeta.index] = item;
       return array;
+    },
+
+    flushedChanges: function(value, instanceMeta) {
+
     }
   };
 
@@ -226,7 +251,7 @@ export function map(dependentKey, callback) {
 */
 export function mapBy (dependentKey, propertyKey) {
   var callback = function(item) { return get(item, propertyKey); };
-  return map(dependentKey + '.@each.' + propertyKey, callback);
+  return map(dependentKey, callback);
 }
 
 /**
