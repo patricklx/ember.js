@@ -880,11 +880,11 @@ export function chain (dependentKey, computedChains) {
   }, this);
   func = cp.func;
   cp.func = function (propertyName) {
-    if (!cp.__ember_meta__.cacheMeta[propertyName]) {
+    if (!cp.__ember_meta__.cacheMeta['chain-'+propertyName]) {
       for (var k in dependantCPs) {
         var cp = dependantCPs[k];
         Ember.defineProperty(this, k, cp);
-        cp.__ember_meta__.cacheMeta[propertyName] = true;
+        cp.__ember_meta__.cacheMeta['chain-'+propertyName] = true;
       }
     }
     return func.apply(this, arguments);
