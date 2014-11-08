@@ -54,15 +54,6 @@ import TargetActionSupport from 'ember-runtime/mixins/target_action_support';
 import Evented from 'ember-runtime/mixins/evented';
 import PromiseProxyMixin from 'ember-runtime/mixins/promise_proxy';
 import SortableMixin from 'ember-runtime/mixins/sortable';
-import {
-  arrayComputed,
-  ArrayComputedProperty
-} from 'ember-runtime/computed/array_computed';
-
-import {
-  reduceComputed,
-  ReduceComputedProperty
-} from 'ember-runtime/computed/reduce_computed';
 
 import {
   sum,
@@ -79,7 +70,7 @@ import {
   uniq,
   union,
   intersect
-} from 'ember-runtime/computed/reduce_computed_macros';
+} from 'ember-runtime/computed/computed_macros';
 
 import ArrayController from 'ember-runtime/controllers/array_controller';
 import ObjectController from 'ember-runtime/controllers/object_controller';

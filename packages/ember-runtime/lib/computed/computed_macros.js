@@ -3,7 +3,6 @@
 @submodule ember-runtime
 */
 
-import Ember from 'ember-metal/core'; // Ember.assert
 import { get } from 'ember-metal/property_get';
 import {
   isArray,
@@ -14,9 +13,6 @@ import {
   forEach
 } from 'ember-metal/enumerable_utils';
 import run from 'ember-metal/run_loop';
-import { addObserver } from 'ember-metal/observer';
-import { arrayComputed } from 'ember-runtime/computed/array_computed';
-import { reduceComputed } from 'ember-runtime/computed/reduce_computed';
 import SubArray from 'ember-runtime/system/subarray';
 import keys from 'ember-metal/keys';
 import compare from 'ember-runtime/compare';
@@ -35,16 +31,10 @@ var a_slice = [].slice;
 */
 
 export function sum(dependentKey){
-  return reduceComputed(dependentKey, {
-    initialValue: 0,
-
-    addedItem: function(accumulatedValue, item, changeMeta, instanceMeta){
-      return accumulatedValue + item;
-    },
-
-    removedItem: function(accumulatedValue, item, changeMeta, instanceMeta){
-      return accumulatedValue - item;
-    }
+  return computed(dependentKey+'.[]', function () {
+    return get(this, dependentKey).reduce(function (previousValue, item) {
+      return previousValue + item;
+    })
   });
 }
 
@@ -82,19 +72,11 @@ export function sum(dependentKey){
   @return {Ember.ComputedProperty} computes the largest value in the dependentKey's array
 */
 export function max(dependentKey) {
-  return reduceComputed(dependentKey, {
-    initialValue: -Infinity,
-
-    addedItem: function (accumulatedValue, item, changeMeta, instanceMeta) {
-      return Math.max(accumulatedValue, item);
-    },
-
-    removedItem: function (accumulatedValue, item, changeMeta, instanceMeta) {
-      if (item < accumulatedValue) {
-        return accumulatedValue;
-      }
-    }
-  });
+  return computed(dependentKey+'.[]', function(){
+    return get(this, dependentKey).reduce(function (previousValue, item) {
+      return Math.max(previousValue, item);
+    })
+  })
 }
 
 /**
@@ -131,19 +113,11 @@ export function max(dependentKey) {
   @return {Ember.ComputedProperty} computes the smallest value in the dependentKey's array
 */
 export function min(dependentKey) {
-  return reduceComputed(dependentKey, {
-    initialValue: Infinity,
-
-    addedItem: function (accumulatedValue, item, changeMeta, instanceMeta) {
-      return Math.min(accumulatedValue, item);
-    },
-
-    removedItem: function (accumulatedValue, item, changeMeta, instanceMeta) {
-      if (item > accumulatedValue) {
-        return accumulatedValue;
-      }
-    }
-  });
+  return computed(dependentKey+'.[]', function(){
+    return get(this, dependentKey).reduce(function (previousValue, item) {
+      return Math.min(previousValue, item);
+    })
+  })
 }
 
 /**
@@ -180,19 +154,9 @@ export function min(dependentKey) {
   @return {Ember.ComputedProperty} an array mapped via the callback
 */
 export function map(dependentKey, callback) {
-  var options = {
-    addedItem: function(array, item, changeMeta, instanceMeta) {
-      var mapped = callback.call(this, item, changeMeta.index);
-      array.insertAt(changeMeta.index, mapped);
-      return array;
-    },
-    removedItem: function(array, item, changeMeta, instanceMeta) {
-      array.removeAt(changeMeta.index, 1);
-      return array;
-    }
-  };
-
-  return arrayComputed(dependentKey, options);
+  return computed(dependentKey, function(){
+    return get(this, dependentKey).map(callback);
+  })
 }
 
 /**
@@ -225,8 +189,9 @@ export function map(dependentKey, callback) {
   @return {Ember.ComputedProperty} an array mapped to the specified key
 */
 export function mapBy (dependentKey, propertyKey) {
-  var callback = function(item) { return get(item, propertyKey); };
-  return map(dependentKey + '.@each.' + propertyKey, callback);
+  return computed(dependentKey, function(){
+    return get(this, dependentKey).mapBy(propertyKey);
+  })
 }
 
 /**
@@ -274,34 +239,29 @@ export var mapProperty = mapBy;
   @return {Ember.ComputedProperty} the filtered array
 */
 export function filter(dependentKey, callback) {
-  var options = {
-    initialize: function (array, changeMeta, instanceMeta) {
-      instanceMeta.filteredArrayIndexes = new SubArray();
-    },
+  return computed(dependentKey+'.[]', function(property) {
+    var sourceArray, filteredArray, i,
+      newLength = 0;
 
-    addedItem: function (array, item, changeMeta, instanceMeta) {
-      var match = !!callback.call(this, item, changeMeta.index);
-      var filterIndex = instanceMeta.filteredArrayIndexes.addItem(changeMeta.index, match);
+    sourceArray = this.get(dependentKey);
 
-      if (match) {
-        array.insertAt(filterIndex, item);
-      }
+    filteredArray = this.__ember_meta__.cacheMeta[property];
 
-      return array;
-    },
-
-    removedItem: function(array, item, changeMeta, instanceMeta) {
-      var filterIndex = instanceMeta.filteredArrayIndexes.removeItem(changeMeta.index);
-
-      if (filterIndex > -1) {
-        array.removeAt(filterIndex);
-      }
-
-      return array;
+    if (filteredArray === undefined) {
+      filteredArray = this.__ember_meta__.cacheMeta[property] = [];
     }
-  };
 
-  return arrayComputed(dependentKey, options);
+    for (i = 0; i < sourceArray.length; i++) {
+      if (callback(sourceArray[i])){
+        filteredArray[newLength++] = sourceArray[i];
+      }
+    }
+
+    filteredArray.length = newLength;
+    filteredArray.notifyPropertyChange('[]');
+
+    return filteredArray;
+  });
 }
 
 /**
@@ -331,19 +291,29 @@ export function filter(dependentKey, callback) {
   @return {Ember.ComputedProperty} the filtered array
 */
 export function filterBy (dependentKey, propertyKey, value) {
-  var callback;
+  return computed(dependentKey+'.@each.'+propertyKey, function(property) {
+    var sourceArray, filteredArray, i,
+      newLength = 0;
 
-  if (arguments.length === 2) {
-    callback = function(item) {
-      return get(item, propertyKey);
-    };
-  } else {
-    callback = function(item) {
-      return get(item, propertyKey) === value;
-    };
-  }
+    sourceArray = this.get(dependentKey);
 
-  return filter(dependentKey + '.@each.' + propertyKey, callback);
+    filteredArray = this.__ember_meta__.cacheMeta[property];
+
+    if (filteredArray === undefined) {
+      filteredArray = this.__ember_meta__.cacheMeta[property] = [];
+    }
+
+    for (i = 0; i < sourceArray.length; i++) {
+      if (get(sourceArray[i], propertyKey) == value){
+        filteredArray[newLength++] = sourceArray[i];
+      }
+    }
+
+    filteredArray.length = newLength;
+    filteredArray.notifyPropertyChange('[]');
+
+    return filteredArray;
+  });
 }
 
 /**
@@ -386,38 +356,29 @@ export var filterProperty = filterBy;
   unique elements from the dependent array
 */
 export function uniq() {
-  var args = a_slice.call(arguments);
+  return computed(arguments, function(property) {
+    var sourceArray, filteredArray, i,
+      newLength = 0;
 
-  args.push({
-    initialize: function(array, changeMeta, instanceMeta) {
-      instanceMeta.itemCounts = {};
-    },
+    sourceArray = this.get(dependentKey);
 
-    addedItem: function(array, item, changeMeta, instanceMeta) {
-      var guid = guidFor(item);
+    filteredArray = this.__ember_meta__.cacheMeta[property];
 
-      if (!instanceMeta.itemCounts[guid]) {
-        instanceMeta.itemCounts[guid] = 1;
-        array.pushObject(item);
-      } else {
-        ++instanceMeta.itemCounts[guid];
-      }
-      return array;
-    },
-
-    removedItem: function(array, item, _, instanceMeta) {
-      var guid = guidFor(item);
-      var itemCounts = instanceMeta.itemCounts;
-
-      if (--itemCounts[guid] === 0) {
-        array.removeObject(item);
-      }
-
-      return array;
+    if (filteredArray === undefined) {
+      filteredArray = this.__ember_meta__.cacheMeta[property] = [];
     }
-  });
 
-  return arrayComputed.apply(null, args);
+    for (i = 0; i < sourceArray.length; i++) {
+      if (get(sourceArray[i], propertyKey) == value){
+        filteredArray[newLength++] = sourceArray[i];
+      }
+    }
+
+    filteredArray.length = newLength;
+    filteredArray.notifyPropertyChange('[]');
+
+    return filteredArray;
+  });
 }
 
 /**
@@ -457,7 +418,7 @@ export function intersect() {
   var args = a_slice.call(arguments);
 
   args.push({
-    initialize: function (array, changeMeta, instanceMeta) {
+    initialize: function ( changeMeta, instanceMeta) {
       instanceMeta.itemCounts = {};
     },
 
@@ -580,46 +541,6 @@ export function setDiff(setAProperty, setBProperty) {
   });
 }
 
-function binarySearch(array, item, low, high) {
-  var mid, midItem, res, guidMid, guidItem;
-
-  if (arguments.length < 4) {
-    high = get(array, 'length');
-  }
-
-  if (arguments.length < 3) {
-    low = 0;
-  }
-
-  if (low === high) {
-    return low;
-  }
-
-  mid = low + Math.floor((high - low) / 2);
-  midItem = array.objectAt(mid);
-
-  guidMid = guidFor(midItem);
-  guidItem = guidFor(item);
-
-  if (guidMid === guidItem) {
-    return mid;
-  }
-
-  res = this.order(midItem, item);
-
-  if (res === 0) {
-    res = guidMid < guidItem ? -1 : 1;
-  }
-
-
-  if (res < 0) {
-    return this.binarySearch(array, item, mid+1, high);
-  } else if (res > 0) {
-    return this.binarySearch(array, item, low, mid);
-  }
-
-  return mid;
-}
 
 
 /**
@@ -687,153 +608,65 @@ function binarySearch(array, item, low, high) {
   on the sort property array or callback function
 */
 export function sort(itemsKey, sortDefinition) {
-  Ember.assert('Ember.computed.sort requires two arguments: an array key to sort and ' +
-    'either a sort properties key or sort function', arguments.length === 2);
+  var append, callback, setSorting, sortings;
+  if (typeof sortDefinition == 'function'){
+    append = '.[]';
+    callback = sortDefinition;
+  }else{
+    append = '.@each.{' + sortDefinition.join(',') + '}';
+    setSorting = function(){
+      var sortings = [];
+      forEach(sortDefinition, function (sortPropertyDefinition, i) {
+        var s = sortings[i] = {}, idx;
+        if ((idx = sortPropertyDefinition.indexOf(':')) !== -1) {
+          s['sortProperty'] = sortPropertyDefinition.substring(0, idx);
+          s['asc'] = sortPropertyDefinition.substring(idx + 1).toLowerCase() !== 'desc';
+        } else {
+          s['sortProperty'] = sortPropertyDefinition;
+          s['asc'] = true;
+        }
+      });
+      return sortings;
+    };
 
-  if (typeof sortDefinition === 'function') {
-    return customSort(itemsKey, sortDefinition);
-  } else {
-    return propertySort(itemsKey, sortDefinition);
+    callback = function(itemA, itemB){
+      var keyA, keyB, i, sortProperty, asc, result;
+      for ( i = 0; i < sortings.length; ++i) {
+        sortProperty = sortings[i]['sortProperty'];
+        keyA = get(itemA, sortProperty);
+        keyB = get(itemB, sortProperty);
+
+        asc = sortings[i]['asc'];
+
+        result = compare(keyA, keyB);
+
+        if (result !== 0) {
+          return asc ? result : (-1 * result);
+        }
+      }
+      return 0;
+    }
   }
-}
+  return computed(itemsKey+append, function(property) {
+    var sourceArray, sortedArray, i;
+    setSorting();
 
-function customSort(itemsKey, comparator) {
-  return arrayComputed(itemsKey, {
-    initialize: function (array, changeMeta, instanceMeta) {
-      instanceMeta.order = comparator;
-      instanceMeta.binarySearch = binarySearch;
-      instanceMeta.waitingInsertions = [];
-      instanceMeta.insertWaiting = function() {
-        var index, item;
-        var waiting = instanceMeta.waitingInsertions;
-        instanceMeta.waitingInsertions = [];
-        for (var i=0; i<waiting.length; i++) {
-          item = waiting[i];
-          index = instanceMeta.binarySearch(array, item);
-          array.insertAt(index, item);
-        }
-      };
-      instanceMeta.insertLater = function(item) {
-        this.waitingInsertions.push(item);
-      };
-    },
+    sourceArray = this.get(itemsKey);
 
-    addedItem: function (array, item, changeMeta, instanceMeta) {
-      instanceMeta.insertLater(item);
-      return array;
-    },
+    sortedArray = this.__ember_meta__.cacheMeta[property];
 
-    removedItem: function (array, item, changeMeta, instanceMeta) {
-      array.removeObject(item);
-      return array;
-    },
-
-    flushedChanges: function(array, instanceMeta) {
-      instanceMeta.insertWaiting();
+    if (sortedArray === undefined) {
+      sortedArray = this.__ember_meta__.cacheMeta[property] = [];
     }
+
+    for (i = 0; i < sourceArray.length; i++) {
+      sortedArray[i] = sourceArray[i];
+    }
+
+    sortedArray.sort(callback);
+
+    sortedArray.notifyPropertyChange('[]');
+
+    return sortedArray;
   });
-}
-
-function propertySort(itemsKey, sortPropertiesKey) {
-  return arrayComputed(itemsKey, {
-    initialize: function (array, changeMeta, instanceMeta) {
-      function setupSortProperties() {
-        var sortPropertyDefinitions = get(this, sortPropertiesKey);
-        var sortProperties = instanceMeta.sortProperties = [];
-        var sortPropertyAscending = instanceMeta.sortPropertyAscending = {};
-        var sortProperty, idx, asc;
-
-        Ember.assert('Cannot sort: \'' + sortPropertiesKey + '\' is not an array.',
-                     isArray(sortPropertyDefinitions));
-
-        changeMeta.property.clearItemPropertyKeys(itemsKey);
-
-        forEach(sortPropertyDefinitions, function (sortPropertyDefinition) {
-          if ((idx = sortPropertyDefinition.indexOf(':')) !== -1) {
-            sortProperty = sortPropertyDefinition.substring(0, idx);
-            asc = sortPropertyDefinition.substring(idx+1).toLowerCase() !== 'desc';
-          } else {
-            sortProperty = sortPropertyDefinition;
-            asc = true;
-          }
-
-          sortProperties.push(sortProperty);
-          sortPropertyAscending[sortProperty] = asc;
-          changeMeta.property.itemPropertyKey(itemsKey, sortProperty);
-        });
-
-        sortPropertyDefinitions.addObserver('@each', this, updateSortPropertiesOnce);
-      }
-
-      function updateSortPropertiesOnce() {
-        run.once(this, updateSortProperties, changeMeta.propertyName);
-      }
-
-      function updateSortProperties(propertyName) {
-        setupSortProperties.call(this);
-        changeMeta.property.recomputeOnce.call(this, propertyName);
-      }
-
-      addObserver(this, sortPropertiesKey, updateSortPropertiesOnce);
-      setupSortProperties.call(this);
-
-      instanceMeta.order = function (itemA, itemB) {
-        var sortProperty, result, asc;
-        var keyA = this.keyFor(itemA);
-        var keyB = this.keyFor(itemB);
-
-        for (var i = 0; i < this.sortProperties.length; ++i) {
-          sortProperty = this.sortProperties[i];
-
-          result = compare(keyA[sortProperty], keyB[sortProperty]);
-
-          if (result !== 0) {
-            asc = this.sortPropertyAscending[sortProperty];
-            return asc ? result : (-1 * result);
-          }
-        }
-
-        return 0;
-      };
-
-      instanceMeta.binarySearch = binarySearch;
-      setupKeyCache(instanceMeta);
-    },
-
-    addedItem: function (array, item, changeMeta, instanceMeta) {
-      var index = instanceMeta.binarySearch(array, item);
-      array.insertAt(index, item);
-      return array;
-    },
-
-    removedItem: function (array, item, changeMeta, instanceMeta) {
-      var index = instanceMeta.binarySearch(array, item);
-      array.removeAt(index);
-      instanceMeta.dropKeyFor(item);
-      return array;
-    }
-  });
-}
-
-function setupKeyCache(instanceMeta) {
-  instanceMeta.keyFor = function(item) {
-    var guid = guidFor(item);
-    if (this.keyCache[guid]) {
-      return this.keyCache[guid];
-    }
-    var sortProperty;
-    var key = {};
-    for (var i = 0; i < this.sortProperties.length; ++i) {
-      sortProperty = this.sortProperties[i];
-      key[sortProperty] = get(item, sortProperty);
-    }
-    return this.keyCache[guid] = key;
-  };
-
-  instanceMeta.dropKeyFor = function(item) {
-    var guid = guidFor(item);
-    this.keyCache[guid] = null;
-  };
-
-  instanceMeta.keyCache = {};
 }
