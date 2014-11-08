@@ -608,16 +608,24 @@ export function setDiff(setAProperty, setBProperty) {
   on the sort property array or callback function
 */
 export function sort(itemsKey, sortDefinition) {
-  var append, callback, setSorting, sortings;
+  var append, callback, sortings,
+    setSorting = function(){};
+
   if (typeof sortDefinition == 'function'){
+
     append = '.[]';
     callback = sortDefinition;
+
   }else{
+
     append = '.@each.{' + sortDefinition.join(',') + '}';
+
     setSorting = function(){
       var sortings = [];
+
       forEach(sortDefinition, function (sortPropertyDefinition, i) {
         var s = sortings[i] = {}, idx;
+
         if ((idx = sortPropertyDefinition.indexOf(':')) !== -1) {
           s['sortProperty'] = sortPropertyDefinition.substring(0, idx);
           s['asc'] = sortPropertyDefinition.substring(idx + 1).toLowerCase() !== 'desc';
@@ -625,12 +633,14 @@ export function sort(itemsKey, sortDefinition) {
           s['sortProperty'] = sortPropertyDefinition;
           s['asc'] = true;
         }
+
       });
       return sortings;
     };
 
     callback = function(itemA, itemB){
       var keyA, keyB, i, sortProperty, asc, result;
+
       for ( i = 0; i < sortings.length; ++i) {
         sortProperty = sortings[i]['sortProperty'];
         keyA = get(itemA, sortProperty);
