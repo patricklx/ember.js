@@ -14,19 +14,9 @@ function ArrayComputedProperty() {
 
 ArrayComputedProperty.prototype = o_create(ReduceComputedProperty.prototype);
 
+ArrayComputedProperty.prototype._initialValue = ArrayComputedProperty.prototype.initialValue;
 ArrayComputedProperty.prototype.initialValue = function (context) {
-  if (typeof this.options.initialValue === 'function') {
-    return this.options.initialValue.call(context);
-  }
-  else {
-    return Ember.A();
-  }
-
-};
-
-ArrayComputedProperty.prototype.resetValue = function (array) {
-  array.clear();
-  return array;
+  return this._initialValue(context) || Ember.A();
 };
 
 // This is a stopgap to keep the reference counts correct with lazy CPs.

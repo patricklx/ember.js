@@ -3,7 +3,6 @@
 @submodule ember-runtime
 */
 
-import Ember from 'ember-metal/core'; // Ember.assert
 import { get } from 'ember-metal/property_get';
 import {
   isArray,
@@ -36,8 +35,8 @@ var a_slice = [].slice;
 
 export function sum(dependentKey){
   return reduceComputed(dependentKey, {
-    initialValue: function (options) {
-      return this.get(dependentKey).reduce(options.addedItem);
+    initialValue: function (cp) {
+      return this.get(dependentKey).reduce(cp.callbacks.addedItem);
     },
 
     addedItem: function(accumulatedValue, item, changeMeta, instanceMeta){
@@ -188,7 +187,7 @@ export function min(dependentKey) {
 export function map(dependentKey, callback) {
   var options = {
 
-    initialize: function (array, changeMeta, instanceMeta) {
+    initialize: function (changeMeta, instanceMeta) {
       instanceMeta.pendingRemove = {}
     },
 
@@ -298,14 +297,26 @@ export var mapProperty = mapBy;
   @param {Function} callback
   @return {Ember.ComputedProperty} the filtered array
 */
-export function filter(dependentKey, callback) {
+export function filter(dependentKey, callback, needIndex) {
   var options = {
-    initialize: function (array, changeMeta, instanceMeta) {
+    needIndex: needIndex || false,
+
+    initialize: function (changeMeta, instanceMeta) {
       instanceMeta.filteredArrayIndexes = new SubArray();
+      var a = [];
+      this.get(changeMeta.property._dependentKeys[0]).forEach(function(item){
+        var match = !!callback.call(this, item, changeMeta.index);
+        instanceMeta.filteredArrayIndexes.addItem(changeMeta.index, match);
+        if(match){
+          a.push(item);
+        }
+      });
+      changeMeta.property.options.initialValue = a;
     },
 
     addedItem: function (array, item, changeMeta, instanceMeta) {
       var match = !!callback.call(this, item, changeMeta.index);
+
       var filterIndex = instanceMeta.filteredArrayIndexes.addItem(changeMeta.index, match);
 
       if (match) {
@@ -414,8 +425,15 @@ export function uniq() {
   var args = a_slice.call(arguments);
 
   args.push({
-    initialize: function(array, changeMeta, instanceMeta) {
+    initialize: function(changeMeta, instanceMeta) {
       instanceMeta.itemCounts = {};
+      var cp = changeMeta.property;
+      var array = this.get(cp._dependentKeys[0]);
+      var uniqArray = [];
+      array.forEach(function (item) {
+        cp.callbacks.addedItem(uniqArray, item,{}, instanceMeta);
+      });
+      cp.options.initialValue = uniqArray;
     },
 
     addedItem: function(array, item, changeMeta, instanceMeta) {
@@ -482,7 +500,7 @@ export function intersect() {
   var args = a_slice.call(arguments);
 
   args.push({
-    initialize: function (array, changeMeta, instanceMeta) {
+    initialize: function ( changeMeta, instanceMeta) {
       instanceMeta.itemCounts = {};
     },
 
@@ -724,7 +742,14 @@ export function sort(itemsKey, sortDefinition) {
 
 function customSort(itemsKey, comparator) {
   return arrayComputed(itemsKey, {
-    initialize: function (array, changeMeta, instanceMeta) {
+    initialize: function (changeMeta, instanceMeta) {
+      var sortedArray;
+      var depKeys = changeMeta.property._dependentKeys;
+      var sourceArray = this.get(depKeys[0]);
+      sortedArray = sourceArray.toArray();
+      sortedArray.sort(comparator);
+      changeMeta.property.options.initialValue = sortedArray;
+
       instanceMeta.order = comparator;
       instanceMeta.binarySearch = binarySearch;
       instanceMeta.waitingInsertions = [];
@@ -734,8 +759,8 @@ function customSort(itemsKey, comparator) {
         instanceMeta.waitingInsertions = [];
         for (var i=0; i<waiting.length; i++) {
           item = waiting[i];
-          index = instanceMeta.binarySearch(array, item);
-          array.insertAt(index, item);
+          index = instanceMeta.binarySearch(sortedArray, item);
+          sortedArray.insertAt(index, item);
         }
       };
       instanceMeta.insertLater = function(item) {
