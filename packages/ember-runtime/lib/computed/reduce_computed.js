@@ -143,7 +143,10 @@ function ReduceComputedProperty(options) {
       // hope the array is re-retrieved.
       forEach(cp._dependentKeys, function(dependentKey) {
           addObserver(this, dependentKey, function() {
+            var meta = cp._instanceMeta(this, propertyName);
+            if(meta.dependentArrays[dependentKey] !== get(this, dependentKey)){
               cp.recomputeOnce.call(this, propertyName);
+            }
           });
       }, this);
       setup.call(this, propertyName);

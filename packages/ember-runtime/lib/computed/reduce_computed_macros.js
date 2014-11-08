@@ -36,7 +36,7 @@ var a_slice = [].slice;
 export function sum(dependentKey){
   return reduceComputed(dependentKey, {
     initialValue: function (cp) {
-      return this.get(dependentKey).reduce(cp.callbacks.addedItem);
+      return this.get(dependentKey).reduce(cp.callbacks.addedItem, 0);
     },
 
     addedItem: function(accumulatedValue, item, changeMeta, instanceMeta){
@@ -85,7 +85,7 @@ export function sum(dependentKey){
 export function max(dependentKey) {
   return reduceComputed(dependentKey, {
     initialValue: function(options){
-      return this.get('dependentKey').reduce(options.addedItem);
+      return this.get('dependentKey').reduce(options.addedItem, -Infinity);
     },
 
     addedItem: function (accumulatedValue, item, changeMeta, instanceMeta) {
@@ -136,7 +136,7 @@ export function max(dependentKey) {
 export function min(dependentKey) {
   return reduceComputed(dependentKey, {
     initialValue: function(options){
-      return this.get('dependentKey').reduce(options.addedItem);
+      return this.get('dependentKey').reduce(options.addedItem, +Infinity);
     },
 
     addedItem: function (accumulatedValue, item, changeMeta, instanceMeta) {
@@ -186,33 +186,30 @@ export function min(dependentKey) {
 */
 export function map(dependentKey, callback) {
   var options = {
+    needIndex: true,
 
     initialize: function (changeMeta, instanceMeta) {
       instanceMeta.pendingRemove = {}
     },
 
-    initialValue: function (options) {
-      run.once(function () {
-
-      })
-      return this.get(dependentKey).map(callback);
+    initialValue: function (cp) {
+      return this.get(cp._dependentKeys[0]).map(callback);
     },
 
     addedItem: function(array, item, changeMeta, instanceMeta) {
-      if(instanceMeta.pendingRemove[changeMeta.index]){
-        delete instanceMeta.pendingRemove[changeMeta.index]
-      }
       var mapped = callback.call(this, item, changeMeta.index);
       array.insertAt(changeMeta.index, mapped);
       return array;
     },
     removedItem: function(array, item, changeMeta, instanceMeta) {
-      instanceMeta.pendingRemove[changeMeta.index] = item;
+      array.removeAt(changeMeta.index);
       return array;
     },
 
-    flushedChanges: function(value, instanceMeta) {
-
+    propertyChanged: function (array, item, changeMeta, instanceMeta) {
+      var mapped = callback.call(this, item, changeMeta.index);
+      array.replace(changeMeta.index, 1,[mapped]);
+      return array;
     }
   };
 
@@ -250,7 +247,7 @@ export function map(dependentKey, callback) {
 */
 export function mapBy (dependentKey, propertyKey) {
   var callback = function(item) { return get(item, propertyKey); };
-  return map(dependentKey, callback);
+  return map(dependentKey + '.@each.' + propertyKey, callback);
 }
 
 /**
@@ -299,7 +296,7 @@ export var mapProperty = mapBy;
 */
 export function filter(dependentKey, callback, needIndex) {
   var options = {
-    needIndex: needIndex || false,
+    needIndex: true,
 
     initialize: function (changeMeta, instanceMeta) {
       instanceMeta.filteredArrayIndexes = new SubArray();
@@ -331,6 +328,23 @@ export function filter(dependentKey, callback, needIndex) {
 
       if (filterIndex > -1) {
         array.removeAt(filterIndex);
+      }
+
+      return array;
+    },
+
+    propertyChanged: function (array, item, changeMeta, instanceMeta) {
+      var match = !!callback.call(this, item, changeMeta.index), filterIndex;
+      if(!match){
+        filterIndex = instanceMeta.filteredArrayIndexes.removeItem(changeMeta.index);
+
+        if (filterIndex > -1) {
+          array.removeAt(filterIndex);
+        }
+      }else{
+        filterIndex = instanceMeta.filteredArrayIndexes.addItem(changeMeta.index, match);
+        array.removeAt(filterIndex);
+        array.insertAt(filterIndex, item);
       }
 
       return array;

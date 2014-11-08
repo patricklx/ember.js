@@ -193,7 +193,7 @@ DependentArraysObserver.prototype = {
 
       forEach(itemPropertyKeys, removeObservers, this);
 
-      changeMeta = ChangeMeta.call(changeMeta, dependentArray, item, itemIndex, this.instanceMeta.propertyName, this.cp, removedCount);
+      ChangeMeta.call(changeMeta, dependentArray, item, itemIndex, this.instanceMeta.propertyName, this.cp, removedCount);
       this.setValue(removedItem.call(
         this.instanceMeta.context, this.getValue(), item, changeMeta, this.instanceMeta.sugarMeta));
     }
@@ -260,7 +260,7 @@ DependentArraysObserver.prototype = {
     for (key in changedItems) {
       c = changedItems[key];
 
-      ChangeMeta.call(changeMeta, c.array, c.obj, -1, this.instanceMeta.propertyName, this.cp, changedItems.length);
+      ChangeMeta.call(changeMeta, c.array, c.obj, c.observerContext.index, this.instanceMeta.propertyName, this.cp, changedItems.length);
       this.setValue(
         this.callbacks.propertyChanged.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
     }
