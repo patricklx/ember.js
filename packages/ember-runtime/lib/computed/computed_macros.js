@@ -32,9 +32,12 @@ var a_slice = [].slice;
 
 export function sum(dependentKey){
   return computed(dependentKey+'.[]', function () {
-    return get(this, dependentKey).reduce(function (previousValue, item) {
+    var srcArray = get(this, dependentKey);
+    if(!srcArray) return 0;
+
+    return srcArray.reduce(function (previousValue, item) {
       return previousValue + item;
-    })
+    }, 0)
   });
 }
 
@@ -73,9 +76,12 @@ export function sum(dependentKey){
 */
 export function max(dependentKey) {
   return computed(dependentKey+'.[]', function(){
+    var srcArray = get(this, dependentKey);
+    if(!srcArray) return -Infinity;
+
     return get(this, dependentKey).reduce(function (previousValue, item) {
       return Math.max(previousValue, item);
-    })
+    }, -Infinity)
   })
 }
 
@@ -114,9 +120,12 @@ export function max(dependentKey) {
 */
 export function min(dependentKey) {
   return computed(dependentKey+'.[]', function(){
+    var srcArray = get(this, dependentKey);
+    if(!srcArray) return +Infinity;
+
     return get(this, dependentKey).reduce(function (previousValue, item) {
       return Math.min(previousValue, item);
-    })
+    }, +Infinity)
   })
 }
 
@@ -154,8 +163,31 @@ export function min(dependentKey) {
   @return {Ember.ComputedProperty} an array mapped via the callback
 */
 export function map(dependentKey, callback) {
-  return computed(dependentKey, function(){
-    return get(this, dependentKey).map(callback);
+  var depArray = dependentKey;
+  if(dependentKey.indexOf('.@each') !== -1){
+    depArray = dependentKey.split('.')[0];
+  }else{
+    dependentKey += '.[]';
+  }
+  return computed(dependentKey, function(property){
+    var sourceArray, mappedArray, i;
+
+    sourceArray = get(this, depArray);
+
+    mappedArray = this.__ember_meta__.cacheMeta[property];
+
+    if (mappedArray === undefined) {
+      mappedArray = this.__ember_meta__.cacheMeta[property] = [];
+    }
+
+    if(!sourceArray) return mappedArray;
+    for (i = 0; i < sourceArray.length; i++) {
+      mappedArray[i] = callback(sourceArray[i], i);
+    }
+
+    mappedArray.notifyPropertyChange('[]');
+
+    return mappedArray;
   })
 }
 
@@ -189,9 +221,8 @@ export function map(dependentKey, callback) {
   @return {Ember.ComputedProperty} an array mapped to the specified key
 */
 export function mapBy (dependentKey, propertyKey) {
-  return computed(dependentKey, function(){
-    return get(this, dependentKey).mapBy(propertyKey);
-  })
+  var callback = function(item) { return get(item, propertyKey); };
+  return map(dependentKey + '.@each.' + propertyKey, callback)
 }
 
 /**
@@ -239,11 +270,17 @@ export var mapProperty = mapBy;
   @return {Ember.ComputedProperty} the filtered array
 */
 export function filter(dependentKey, callback) {
-  return computed(dependentKey+'.[]', function(property) {
+  var depArray = dependentKey;
+  if(dependentKey.indexOf('.@each') !== -1){
+    depArray = dependentKey.split('.')[0];
+  }else{
+    dependentKey += '.[]';
+  }
+  return computed(dependentKey, function(property) {
     var sourceArray, filteredArray, i,
       newLength = 0;
 
-    sourceArray = this.get(dependentKey);
+    sourceArray = this.get(depArray);
 
     filteredArray = this.__ember_meta__.cacheMeta[property];
 
@@ -291,29 +328,8 @@ export function filter(dependentKey, callback) {
   @return {Ember.ComputedProperty} the filtered array
 */
 export function filterBy (dependentKey, propertyKey, value) {
-  return computed(dependentKey+'.@each.'+propertyKey, function(property) {
-    var sourceArray, filteredArray, i,
-      newLength = 0;
-
-    sourceArray = this.get(dependentKey);
-
-    filteredArray = this.__ember_meta__.cacheMeta[property];
-
-    if (filteredArray === undefined) {
-      filteredArray = this.__ember_meta__.cacheMeta[property] = [];
-    }
-
-    for (i = 0; i < sourceArray.length; i++) {
-      if (get(sourceArray[i], propertyKey) == value){
-        filteredArray[newLength++] = sourceArray[i];
-      }
-    }
-
-    filteredArray.length = newLength;
-    filteredArray.notifyPropertyChange('[]');
-
-    return filteredArray;
-  });
+  var callback = function(item){return get(item, propertyKey) === value;};
+  return filter(dependentKey + '.@each.' + propertyKey, callback);
 }
 
 /**
@@ -356,6 +372,7 @@ export var filterProperty = filterBy;
   unique elements from the dependent array
 */
 export function uniq() {
+  //TODO
   return computed(arguments, function(property) {
     var sourceArray, filteredArray, i,
       newLength = 0;
@@ -621,8 +638,7 @@ export function sort(itemsKey, sortDefinition) {
     append = '.@each.{' + sortDefinition.join(',') + '}';
 
     setSorting = function(){
-      var sortings = [];
-
+      sortings.length = 0;
       forEach(sortDefinition, function (sortPropertyDefinition, i) {
         var s = sortings[i] = {}, idx;
 
@@ -633,9 +649,7 @@ export function sort(itemsKey, sortDefinition) {
           s['sortProperty'] = sortPropertyDefinition;
           s['asc'] = true;
         }
-
       });
-      return sortings;
     };
 
     callback = function(itemA, itemB){
