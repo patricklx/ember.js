@@ -16,8 +16,8 @@ import run from 'ember-metal/run_loop';
 import SubArray from 'ember-runtime/system/subarray';
 import keys from 'ember-metal/keys';
 import compare from 'ember-runtime/compare';
+import computed from 'ember-metal/computed';
 
-var a_slice = [].slice;
 
 /**
  A computed property that returns the sum of the value
