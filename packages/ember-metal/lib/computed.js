@@ -495,7 +495,7 @@ ComputedPropertyPrototype.teardown = function(obj, keyName) {
 ComputedPropertyPrototype.chain = function(method){
   var chainedCP, dependentKey, args, func, cp = this;
 
-  dependentKey = [guidFor(cp)].concat(cp._dependentKeys).join('_');
+  dependentKey = guidFor(cp) + '-chain';
   args = [dependentKey].concat(a_slice.call(arguments,1));
 
   if (typeof method === 'string') {
