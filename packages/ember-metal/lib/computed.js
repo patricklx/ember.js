@@ -1,5 +1,5 @@
-import Ember from 'ember-metal';
 import { set } from "ember-metal/property_set";
+import { guidFor } from 'ember-metal/utils';
 import {
   meta,
   inspect
@@ -495,11 +495,11 @@ ComputedPropertyPrototype.teardown = function(obj, keyName) {
 ComputedPropertyPrototype.chain = function(method){
   var chainedCP, dependentKey, args, func, cp = this;
 
-  dependentKey = [Ember.guidFor(cp)].concat(cp._dependentKeys).join('_');
+  dependentKey = [guidFor(cp)].concat(cp._dependentKeys).join('_');
   args = [dependentKey].concat(a_slice.call(arguments,1));
 
   if (typeof method === 'string') {
-    method = Ember.computed[method];
+    method = computed[method];
   }
   chainedCP = method.apply(null,args);
   func = chainedCP.func;
