@@ -505,8 +505,9 @@ ComputedPropertyPrototype.chain = function(method){
   func = chainedCP.func;
 
   chainedCP.func = function (propertyName) {
-    if (!chainedCP._hasInstanceMeta(this, propertyName)) {
+    if (!this.__ember_meta__.cacheMeta['chain-'+propertyName]) {
       defineProperty(this, dependentKey, cp);
+      this.__ember_meta__.cacheMeta['chain-'+propertyName] = true;
     }
     return func.apply(this, arguments);
   };
