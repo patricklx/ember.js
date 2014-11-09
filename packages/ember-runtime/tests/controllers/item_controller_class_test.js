@@ -7,7 +7,7 @@ import compare from "ember-runtime/compare";
 import EmberObject from "ember-runtime/system/object";
 import ArrayController from "ember-runtime/controllers/array_controller";
 import ObjectController from "ember-runtime/controllers/object_controller";
-import {sort} from "ember-runtime/computed/reduce_computed_macros";
+import {sort} from "ember-runtime/computed/computed_macros";
 import Container from "container";
 
 var lannisters, arrayController, controllerClass, otherControllerClass, container, itemControllerCount,
