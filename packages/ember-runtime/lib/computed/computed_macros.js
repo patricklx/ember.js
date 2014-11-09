@@ -11,7 +11,6 @@ import EmberError from 'ember-metal/error';
 import {
   forEach
 } from 'ember-metal/enumerable_utils';
-import run from 'ember-metal/run_loop';
 import compare from 'ember-runtime/compare';
 import computed from 'ember-metal/computed';
 
@@ -73,7 +72,7 @@ export function max(dependentKey) {
     return get(this, dependentKey).reduce(function (previousValue, item) {
       return Math.max(previousValue, item);
     }, -Infinity);
-  })
+  });
 }
 
 /**
@@ -114,7 +113,7 @@ export function min(dependentKey) {
     return get(this, dependentKey).reduce(function (previousValue, item) {
       return Math.min(previousValue, item);
     }, +Infinity);
-  })
+  });
 }
 
 /**

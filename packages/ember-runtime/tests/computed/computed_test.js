@@ -4,7 +4,6 @@ import {
   get
 } from 'ember-metal/property_get';
 import { set } from 'ember-metal/property_set';
-import { meta as metaFor } from 'ember-metal/utils';
 import run from 'ember-metal/run_loop';
 import EmberObject from "ember-runtime/system/object";
 import compare from 'ember-runtime/compare';
