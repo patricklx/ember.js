@@ -32,10 +32,7 @@ var a_slice = [].slice;
 
 export function sum(dependentKey){
   return computed(dependentKey+'.[]', function () {
-    var srcArray = get(this, dependentKey);
-    if(!srcArray) return 0;
-
-    return srcArray.reduce(function (previousValue, item) {
+    return get(this, dependentKey).reduce(function (previousValue, item) {
       return previousValue + item;
     }, 0)
   });
@@ -76,9 +73,6 @@ export function sum(dependentKey){
 */
 export function max(dependentKey) {
   return computed(dependentKey+'.[]', function(){
-    var srcArray = get(this, dependentKey);
-    if(!srcArray) return -Infinity;
-
     return get(this, dependentKey).reduce(function (previousValue, item) {
       return Math.max(previousValue, item);
     }, -Infinity)
@@ -120,9 +114,6 @@ export function max(dependentKey) {
 */
 export function min(dependentKey) {
   return computed(dependentKey+'.[]', function(){
-    var srcArray = get(this, dependentKey);
-    if(!srcArray) return +Infinity;
-
     return get(this, dependentKey).reduce(function (previousValue, item) {
       return Math.min(previousValue, item);
     }, +Infinity)
@@ -372,29 +363,37 @@ export var filterProperty = filterBy;
   unique elements from the dependent array
 */
 export function uniq() {
-  //TODO
+  var depArrays = arguments;
   return computed(arguments, function(property) {
-    var sourceArray, filteredArray, i,
+    var sourceArray, uniqArray, i,
+      startIndex = 0,
+      inserted = {},
       newLength = 0;
 
-    sourceArray = this.get(dependentKey);
+    uniqArray = this.__ember_meta__.cacheMeta[property];
 
-    filteredArray = this.__ember_meta__.cacheMeta[property];
-
-    if (filteredArray === undefined) {
-      filteredArray = this.__ember_meta__.cacheMeta[property] = [];
+    if (uniqArray === undefined) {
+      uniqArray = this.__ember_meta__.cacheMeta[property] = [];
     }
 
-    for (i = 0; i < sourceArray.length; i++) {
-      if (get(sourceArray[i], propertyKey) == value){
-        filteredArray[newLength++] = sourceArray[i];
+    forEach(depArrays, function(dependentKey){
+      sourceArray = this.get(dependentKey);
+
+      for (i = startIndex; i < sourceArray.length; i++) {
+        var guid = guidFor(sourceArray[i]);
+        if (guid in inserted){
+          uniqArray[newLength++] = sourceArray[i];
+          inserted[guid] = true;
+        }
       }
-    }
+      startIndex = newLength;
+    });
 
-    filteredArray.length = newLength;
-    filteredArray.notifyPropertyChange('[]');
 
-    return filteredArray;
+    uniqArray.length = newLength;
+    uniqArray.notifyPropertyChange('[]');
+
+    return uniqArray;
   });
 }
 
@@ -432,61 +431,43 @@ export var union = uniq;
   duplicated elements from the dependent arrays
 */
 export function intersect() {
-  var args = a_slice.call(arguments);
+  var depArrays = arguments;
+  return computed(arguments, function(property) {
+    var sourceArray, intersectedArray, i,
+      startIndex = 0,
+      inserted = {},
+      newLength = 0,
+      amount = depArrays.length;
 
-  args.push({
-    initialize: function ( changeMeta, instanceMeta) {
-      instanceMeta.itemCounts = {};
-    },
+    intersectedArray = this.__ember_meta__.cacheMeta[property];
 
-    addedItem: function(array, item, changeMeta, instanceMeta) {
-      var itemGuid = guidFor(item);
-      var dependentGuid = guidFor(changeMeta.arrayChanged);
-      var numberOfDependentArrays = changeMeta.property._dependentKeys.length;
-      var itemCounts = instanceMeta.itemCounts;
-
-      if (!itemCounts[itemGuid]) {
-        itemCounts[itemGuid] = {};
-      }
-
-      if (itemCounts[itemGuid][dependentGuid] === undefined) {
-        itemCounts[itemGuid][dependentGuid] = 0;
-      }
-
-      if (++itemCounts[itemGuid][dependentGuid] === 1 &&
-          numberOfDependentArrays === keys(itemCounts[itemGuid]).length) {
-        array.addObject(item);
-      }
-
-      return array;
-    },
-
-    removedItem: function(array, item, changeMeta, instanceMeta) {
-      var itemGuid = guidFor(item);
-      var dependentGuid = guidFor(changeMeta.arrayChanged);
-      var numberOfArraysItemAppearsIn;
-      var itemCounts = instanceMeta.itemCounts;
-
-      if (itemCounts[itemGuid][dependentGuid] === undefined) {
-        itemCounts[itemGuid][dependentGuid] = 0;
-      }
-
-      if (--itemCounts[itemGuid][dependentGuid] === 0) {
-        delete itemCounts[itemGuid][dependentGuid];
-        numberOfArraysItemAppearsIn = keys(itemCounts[itemGuid]).length;
-
-        if (numberOfArraysItemAppearsIn === 0) {
-          delete itemCounts[itemGuid];
-        }
-
-        array.removeObject(item);
-      }
-
-      return array;
+    if (intersectedArray === undefined) {
+      intersectedArray = this.__ember_meta__.cacheMeta[property] = [];
     }
-  });
 
-  return arrayComputed.apply(null, args);
+    forEach(depArrays, function(dependentKey){
+      sourceArray = this.get(dependentKey);
+
+      for (i = startIndex; i < sourceArray.length; i++) {
+        var guid = guidFor(sourceArray[i]);
+        if (guid in inserted){
+          inserted[guid]++;
+        }else{
+          inserted[guid] = 0;
+        }
+        if(inserted[guid] === amount){
+          intersectedArray[newLength++] = sourceArray[i];
+        }
+      }
+      startIndex = newLength;
+    });
+
+
+    intersectedArray.length = newLength;
+    intersectedArray.notifyPropertyChange('[]');
+
+    return intersectedArray;
+  });
 }
 
 /**
@@ -524,38 +505,39 @@ export function setDiff(setAProperty, setBProperty) {
   if (arguments.length !== 2) {
     throw new EmberError('setDiff requires exactly two dependent arrays.');
   }
+  return computed(setAProperty, setBProperty, function(property) {
+    var diffedArray, i, sourceArrayA, sourceArrayB,
+      hasItem = {},
+      newLength = 0, guid;
 
-  return arrayComputed(setAProperty, setBProperty, {
-    addedItem: function (array, item, changeMeta, instanceMeta) {
-      var setA = get(this, setAProperty);
-      var setB = get(this, setBProperty);
+    diffedArray = this.__ember_meta__.cacheMeta[property];
 
-      if (changeMeta.arrayChanged === setA) {
-        if (!setB.contains(item)) {
-          array.addObject(item);
-        }
-      } else {
-        array.removeObject(item);
-      }
-
-      return array;
-    },
-
-    removedItem: function (array, item, changeMeta, instanceMeta) {
-      var setA = get(this, setAProperty);
-      var setB = get(this, setBProperty);
-
-      if (changeMeta.arrayChanged === setB) {
-        if (setA.contains(item)) {
-          array.addObject(item);
-        }
-      } else {
-        array.removeObject(item);
-      }
-
-      return array;
+    if (diffedArray === undefined) {
+      diffedArray = this.__ember_meta__.cacheMeta[property] = [];
     }
+
+    sourceArrayA = this.get(setAProperty);
+    sourceArrayB = this.get(setBProperty);
+
+    for (i = 0; i < sourceArrayB.length; i++) {
+      guid = guidFor(sourceArrayB[i]);
+      hasItem[guid] = true;
+    }
+
+    for (i = 0; i < sourceArrayA.length; i++) {
+      guid = guidFor(sourceArrayA[i]);
+      if (guid in hasItem) {
+        diffedArray[newLength++] = sourceArrayA[i];
+        delete hasItem[guid];
+      }
+    }
+
+    diffedArray.length = newLength;
+    diffedArray.notifyPropertyChange('[]');
+
+    return diffedArray;
   });
+
 }
 
 
