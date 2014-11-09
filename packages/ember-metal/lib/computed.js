@@ -1,3 +1,4 @@
+import Ember from 'ember-metal';
 import { set } from "ember-metal/property_set";
 import {
   meta,
@@ -491,6 +492,27 @@ ComputedPropertyPrototype.teardown = function(obj, keyName) {
 };
 
 
+ComputedPropertyPrototype.chain = function(method){
+  var chainedCP, dependentKey, args, func, cp = this;
+
+  dependentKey = [Ember.guidFor(cp)].concat(cp._dependentKeys).join('_');
+  args = [dependentKey].concat(a_slice.call(arguments,1));
+
+  if (typeof method === 'string') {
+    method = Ember.computed[method];
+  }
+  chainedCP = method.apply(null,args);
+  func = chainedCP.func;
+
+  chainedCP.func = function (propertyName) {
+    if (!chainedCP._hasInstanceMeta(this, propertyName)) {
+      defineProperty(this, dependentKey, cp);
+    }
+    return func.apply(this, arguments);
+  };
+  return chainedCP;
+};
+
 /**
   This helper returns a new property descriptor that wraps the passed
   computed property function. You can use this helper to define properties
@@ -500,7 +522,7 @@ ComputedPropertyPrototype.teardown = function(obj, keyName) {
   The function should accept two parameters, key and value. If value is not
   undefined you should set the value first. In either case return the
   current value of the property.
-  
+
   A computed property defined in this way might look like this:
 
   ```js
@@ -516,7 +538,7 @@ ComputedPropertyPrototype.teardown = function(obj, keyName) {
   var client = Person.create();
 
   client.get('fullName'); // 'Betty Jones'
-  
+
   client.set('lastName', 'Fuller');
   client.get('fullName'); // 'Betty Fuller'
   ```
