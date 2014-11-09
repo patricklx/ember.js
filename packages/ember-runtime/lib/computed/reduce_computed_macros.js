@@ -875,7 +875,7 @@ export function chain (dependentKey, computedChains) {
       cp = Ember.computed[cp];
     }
     cp = cp.apply(null, args);
-    dependentKey = [Ember.guidFor(cp)].concat(cp._dependentKeys).join('_');
+    dependentKey = guidFor(cp) + '-chain';
     dependantCPs[dependentKey] = cp;
   }, this);
   func = cp.func;
