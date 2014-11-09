@@ -5,7 +5,6 @@
 
 import { get } from 'ember-metal/property_get';
 import {
-  isArray,
   guidFor
 } from 'ember-metal/utils';
 import EmberError from 'ember-metal/error';
@@ -13,8 +12,6 @@ import {
   forEach
 } from 'ember-metal/enumerable_utils';
 import run from 'ember-metal/run_loop';
-import SubArray from 'ember-runtime/system/subarray';
-import keys from 'ember-metal/keys';
 import compare from 'ember-runtime/compare';
 import computed from 'ember-metal/computed';
 
@@ -34,7 +31,7 @@ export function sum(dependentKey){
   return computed(dependentKey+'.[]', function () {
     return get(this, dependentKey).reduce(function (previousValue, item) {
       return previousValue + item;
-    }, 0)
+    }, 0);
   });
 }
 
@@ -75,7 +72,7 @@ export function max(dependentKey) {
   return computed(dependentKey+'.[]', function(){
     return get(this, dependentKey).reduce(function (previousValue, item) {
       return Math.max(previousValue, item);
-    }, -Infinity)
+    }, -Infinity);
   })
 }
 
@@ -116,7 +113,7 @@ export function min(dependentKey) {
   return computed(dependentKey+'.[]', function(){
     return get(this, dependentKey).reduce(function (previousValue, item) {
       return Math.min(previousValue, item);
-    }, +Infinity)
+    }, +Infinity);
   })
 }
 
@@ -179,7 +176,7 @@ export function map(dependentKey, callback) {
     mappedArray.notifyPropertyChange('[]');
 
     return mappedArray;
-  })
+  });
 }
 
 /**
@@ -213,7 +210,7 @@ export function map(dependentKey, callback) {
 */
 export function mapBy (dependentKey, propertyKey) {
   var callback = function(item) { return get(item, propertyKey); };
-  return map(dependentKey + '.@each.' + propertyKey, callback)
+  return map(dependentKey + '.@each.' + propertyKey, callback);
 }
 
 /**
@@ -610,7 +607,7 @@ export function sort(itemsKey, sortDefinition) {
   var append, callback, sortings,
     setSorting = function(){};
 
-  if (typeof sortDefinition == 'function'){
+  if (typeof sortDefinition === 'function'){
 
     append = '.[]';
     callback = sortDefinition;
@@ -651,7 +648,7 @@ export function sort(itemsKey, sortDefinition) {
         }
       }
       return 0;
-    }
+    };
   }
   return computed(itemsKey+append, function(property) {
     var sourceArray, sortedArray, i;

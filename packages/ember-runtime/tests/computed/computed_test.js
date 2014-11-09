@@ -1,15 +1,14 @@
 import Ember from 'ember-metal/core';
 import { map } from 'ember-metal/enumerable_utils';
 import {
-  get,
-  getWithDefault
+  get
 } from 'ember-metal/property_get';
 import { set } from 'ember-metal/property_set';
 import { meta as metaFor } from 'ember-metal/utils';
 import run from 'ember-metal/run_loop';
-import keys from "ember-metal/keys";
 import EmberObject from "ember-runtime/system/object";
 import compare from 'ember-runtime/compare';
+import computed from "ember-metal/computed";
 
 
 import {
@@ -20,12 +19,9 @@ import {
   sort,
   setDiff,
   mapBy,
-  mapProperty,
   filter,
   filterBy,
-  filterProperty,
   uniq,
-  union,
   intersect
   } from 'ember-runtime/computed/computed_macros';
 
@@ -33,7 +29,7 @@ var obj;
 
 QUnit.module('computed_macros', {
   setup: function () {
-    var TestObject = Ember.Object.extend({
+    var TestObject = EmberObject.extend({
       _val: 1,
       valCP: computed('_val', function () {
         return this.get('_val') + 1;
@@ -48,7 +44,7 @@ QUnit.module('computed_macros', {
         TestObject.create({_val: 2}),
         TestObject.create({_val: -2}),
         TestObject.create({_val: -5}),
-        TestObject.create({_val: 6}),
+        TestObject.create({_val: 6})
       ]),
 
       sum: sum('numbers'),
@@ -61,7 +57,7 @@ QUnit.module('computed_macros', {
       setDiff: setDiff('number', 'otherNumbers'),
       mapBy: mapBy('objects', 'valCP'),
       filter: filter('numbers', function (item) {
-        return item < 0
+        return item < 0;
       }),
       filterBy: filterBy('objects', 'valCP', 2),
       uniq: uniq('numbers'),
