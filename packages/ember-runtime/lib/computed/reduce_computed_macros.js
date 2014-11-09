@@ -844,16 +844,16 @@ function setupKeyCache(instanceMeta) {
  Example
 
   ```javascript
-  Ember.computed.chain('content', [    
+  Ember.computed.chain('content', [
     [Ember.computed.mapBy, 'key'],
     [Ember.computed.filter, callback], //e.g. remove undefined/null
 	[Ember.computed.sum],
 	[customComputed]
   ]);
-  
+
   //or
   //looks up on Ember.computed
-  Ember.computed.chain('content', [    
+  Ember.computed.chain('content', [
     ['mapBy', 'key'],
     ['filter', callback],
 	['sum'],
@@ -867,28 +867,30 @@ function setupKeyCache(instanceMeta) {
  @since 1.4.0
 */
 export function chain (dependentKey, computedChains) {
-  var func, computed, dependantCPs = {};
+  var func, cp, dependantCPs = {};
   forEach(computedChains, function (item) {
-    computed = item[0];
+    cp = item[0];
     var args = [dependentKey].concat(item.slice(1));
-    if (typeof  computed == "string") {
-      computed = Ember.computed[computed];
+    if (typeof  cp == "string") {
+      cp = Ember.computed[cp];
     }
-    computed = computed.apply(null, args);
-    dependentKey = [Ember.guidFor(computed)].concat(computed._dependentKeys).join('_');
-    dependantCPs[dependentKey] = computed;
+    cp = cp.apply(null, args);
+    dependentKey = [Ember.guidFor(cp)].concat(cp._dependentKeys).join('_');
+    dependantCPs[dependentKey] = cp;
   }, this);
-  func = computed.func;
-  computed.func = function (propertyName) {
-    if (!computed._hasInstanceMeta(this, propertyName)) {
+  func = cp.func;
+  cp.func = function (propertyName) {
+    if (!this.__ember_meta__.cacheMeta['chain-'+propertyName]) {
       for (var k in dependantCPs) {
         var cp = dependantCPs[k];
         Ember.defineProperty(this, k, cp);
+        this.__ember_meta__.cacheMeta['chain-'+propertyName] = true;
       }
     }
     return func.apply(this, arguments);
   };
-  return computed;
+
+  return cp;
 };
 
 /**
