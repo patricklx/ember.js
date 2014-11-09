@@ -115,11 +115,6 @@ Ember.PromiseProxyMixin = PromiseProxyMixin;
 
 Ember.Observable = Observable;
 
-Ember.arrayComputed = arrayComputed;
-Ember.ArrayComputedProperty = ArrayComputedProperty;
-Ember.reduceComputed = reduceComputed;
-Ember.ReduceComputedProperty = ReduceComputedProperty;
-
 // ES6TODO: this seems a less than ideal way/place to add properties to Ember.computed
 var EmComputed = Ember.computed;
 
