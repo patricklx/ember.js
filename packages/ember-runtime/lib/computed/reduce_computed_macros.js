@@ -3,7 +3,6 @@
 @submodule ember-runtime
 */
 
-import Ember from 'ember-metal/core'; // Ember.assert
 import { get } from 'ember-metal/property_get';
 import {
   isArray,
@@ -181,13 +180,29 @@ export function min(dependentKey) {
 */
 export function map(dependentKey, callback) {
   var options = {
+    needIndex: true,
+
+    initialize: function (changeMeta, instanceMeta) {
+      instanceMeta.pendingRemove = {};
+    },
+
+    initialValue: function (cp) {
+      return this.get(cp._dependentKeys[0]).map(callback);
+    },
+
     addedItem: function(array, item, changeMeta, instanceMeta) {
       var mapped = callback.call(this, item, changeMeta.index);
       array.insertAt(changeMeta.index, mapped);
       return array;
     },
     removedItem: function(array, item, changeMeta, instanceMeta) {
-      array.removeAt(changeMeta.index, 1);
+      array.removeAt(changeMeta.index);
+      return array;
+    },
+
+    propertyChanged: function (array, item, changeMeta, instanceMeta) {
+      var mapped = callback.call(this, item, changeMeta.index);
+      array.replace(changeMeta.index, 1,[mapped]);
       return array;
     }
   };
@@ -273,9 +288,11 @@ export var mapProperty = mapBy;
   @param {Function} callback
   @return {Ember.ComputedProperty} the filtered array
 */
-export function filter(dependentKey, callback) {
+export function filter(dependentKey, callback, needIndex) {
   var options = {
-    initialize: function (array, changeMeta, instanceMeta) {
+    needIndex: true,
+
+    initialize: function (changeMeta, instanceMeta) {
       instanceMeta.filteredArrayIndexes = new SubArray();
     },
 
@@ -295,6 +312,24 @@ export function filter(dependentKey, callback) {
 
       if (filterIndex > -1) {
         array.removeAt(filterIndex);
+      }
+
+      return array;
+    },
+
+    propertyChanged: function (array, item, changeMeta, instanceMeta) {
+      var match = !!callback.call(this, item, changeMeta.index), filterIndex;
+      if(!match){
+        filterIndex = instanceMeta.filteredArrayIndexes.removeItem(changeMeta.index);
+
+        if (filterIndex > -1) {
+          array.removeAt(filterIndex);
+        }
+      }else{
+        filterIndex = instanceMeta.filteredArrayIndexes.addItem(changeMeta.index, match);
+        if (filterIndex > -1) {
+          array.replace(filterIndex, 1, item);
+        }
       }
 
       return array;
@@ -389,7 +424,7 @@ export function uniq() {
   var args = a_slice.call(arguments);
 
   args.push({
-    initialize: function(array, changeMeta, instanceMeta) {
+    initialize: function(changeMeta, instanceMeta) {
       instanceMeta.itemCounts = {};
     },
 
@@ -457,7 +492,7 @@ export function intersect() {
   var args = a_slice.call(arguments);
 
   args.push({
-    initialize: function (array, changeMeta, instanceMeta) {
+    initialize: function ( changeMeta, instanceMeta) {
       instanceMeta.itemCounts = {};
     },
 
@@ -699,7 +734,16 @@ export function sort(itemsKey, sortDefinition) {
 
 function customSort(itemsKey, comparator) {
   return arrayComputed(itemsKey, {
-    initialize: function (array, changeMeta, instanceMeta) {
+    hasOwnInitialValue: true,
+
+    initialize: function (changeMeta, instanceMeta) {
+      var sortedArray;
+      var depKeys = changeMeta.property._dependentKeys;
+      var sourceArray = this.get(depKeys[0]);
+      sortedArray = sourceArray.toArray();
+      sortedArray.sort(comparator);
+      changeMeta.property.options.initialValue = sortedArray;
+
       instanceMeta.order = comparator;
       instanceMeta.binarySearch = binarySearch;
       instanceMeta.waitingInsertions = [];
@@ -709,8 +753,8 @@ function customSort(itemsKey, comparator) {
         instanceMeta.waitingInsertions = [];
         for (var i=0; i<waiting.length; i++) {
           item = waiting[i];
-          index = instanceMeta.binarySearch(array, item);
-          array.insertAt(index, item);
+          index = instanceMeta.binarySearch(sortedArray, item);
+          sortedArray.insertAt(index, item);
         }
       };
       instanceMeta.insertLater = function(item) {
@@ -871,11 +915,11 @@ export function chain (dependentKey, computedChains) {
   forEach(computedChains, function (item) {
     cp = item[0];
     var args = [dependentKey].concat(item.slice(1));
-    if (typeof  cp == "string") {
+    if (typeof  cp === "string") {
       cp = Ember.computed[cp];
     }
     cp = cp.apply(null, args);
-    dependentKey = [Ember.guidFor(cp)].concat(cp._dependentKeys).join('_');
+    dependentKey = Ember.guidFor(cp) + '-chain';
     dependantCPs[dependentKey] = cp;
   }, this);
   func = cp.func;
@@ -884,8 +928,8 @@ export function chain (dependentKey, computedChains) {
       for (var k in dependantCPs) {
         var cp = dependantCPs[k];
         Ember.defineProperty(this, k, cp);
-        this.__ember_meta__.cacheMeta['chain-'+propertyName] = true;
       }
+      this.__ember_meta__.cacheMeta['chain-'+propertyName] = true;
     }
     return func.apply(this, arguments);
   };

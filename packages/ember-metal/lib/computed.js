@@ -495,7 +495,7 @@ ComputedPropertyPrototype.teardown = function(obj, keyName) {
 ComputedPropertyPrototype.chain = function(method){
   var chainedCP, dependentKey, args, func, cp = this;
 
-  dependentKey = [guidFor(cp)].concat(cp._dependentKeys).join('_');
+  dependentKey = guidFor(cp) + '-chain';
   args = [dependentKey].concat(a_slice.call(arguments,1));
 
   if (typeof method === 'string') {
@@ -505,7 +505,8 @@ ComputedPropertyPrototype.chain = function(method){
   func = chainedCP.func;
 
   chainedCP.func = function (propertyName) {
-    if (!chainedCP._hasInstanceMeta(this, propertyName)) {
+    if (!this.__ember_meta__.cacheMeta['chain-'+propertyName]) {
+      this.__ember_meta__.cacheMeta['chain-'+propertyName] = true;
       defineProperty(this, dependentKey, cp);
     }
     return func.apply(this, arguments);

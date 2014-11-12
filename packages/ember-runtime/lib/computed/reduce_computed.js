@@ -1,30 +1,25 @@
-import Ember from 'ember-metal/core'; // Ember.assert
 import { get as e_get } from 'ember-metal/property_get';
 import {
   guidFor,
   meta as metaFor
 } from 'ember-metal/utils';
 import EmberError from 'ember-metal/error';
-import {
-  propertyWillChange,
-  propertyDidChange
-} from 'ember-metal/property_events';
+
 import expandProperties from 'ember-metal/expand_properties';
 import {
-  addObserver,
-  removeObserver,
-  addBeforeObserver,
-  removeBeforeObserver
+  addObserver
 } from 'ember-metal/observer';
 import {
   ComputedProperty
 } from 'ember-metal/computed';
 import { create as o_create } from 'ember-metal/platform';
 import { forEach } from 'ember-metal/enumerable_utils';
-import TrackedArray from 'ember-runtime/system/tracked_array';
 import EmberArray from 'ember-runtime/mixins/array';
 import run from 'ember-metal/run_loop';
 import { isArray } from 'ember-metal/utils';
+
+import ReduceComputedPropertyInstanceMeta from './instance_meta';
+import DependentArraysObserver from './dependent_array_observer';
 
 var a_slice = [].slice;
 // Here we explicitly don't allow `@each.foo`; it would require some special
@@ -41,369 +36,17 @@ function get(obj, key) {
   return e_get(obj, key);
 }
 
-/*
-  Tracks changes to dependent arrays, as well as to properties of items in
-  dependent arrays.
-
-  @class DependentArraysObserver
-*/
-function DependentArraysObserver(callbacks, cp, instanceMeta, context, propertyName, sugarMeta) {
-  // user specified callbacks for `addedItem` and `removedItem`
-  this.callbacks = callbacks;
-
-  // the computed property: remember these are shared across instances
-  this.cp = cp;
-
-  // the ReduceComputedPropertyInstanceMeta this DependentArraysObserver is
-  // associated with
-  this.instanceMeta = instanceMeta;
-
-  // A map of array guids to dependentKeys, for the given context.  We track
-  // this because we want to set up the computed property potentially before the
-  // dependent array even exists, but when the array observer fires, we lack
-  // enough context to know what to update: we can recover that context by
-  // getting the dependentKey.
-  this.dependentKeysByGuid = {};
-
-  // a map of dependent array guids -> TrackedArray instances.  We use
-  // this to lazily recompute indexes for item property observers.
-  this.trackedArraysByGuid = {};
-
-  // We suspend observers to ignore replacements from `reset` when totally
-  // recomputing.  Unfortunately we cannot properly suspend the observers
-  // because we only have the key; instead we make the observers no-ops
-  this.suspended = false;
-
-  // This is used to coalesce item changes from property observers within a
-  // single item.
-  this.changedItems = {};
-  // This is used to coalesce item changes for multiple items that depend on
-  // some shared state.
-  this.changedItemCount = 0;
-}
-
-function ItemPropertyObserverContext (dependentArray, index, trackedArray) {
-  Ember.assert('Internal error: trackedArray is null or undefined', trackedArray);
-
-  this.dependentArray = dependentArray;
-  this.index = index;
-  this.item = dependentArray.objectAt(index);
-  this.trackedArray = trackedArray;
-  this.beforeObserver = null;
-  this.observer = null;
-  this.destroyed = false;
-}
-
-DependentArraysObserver.prototype = {
-  setValue: function (newValue) {
-    this.instanceMeta.setValue(newValue, true);
-  },
-
-  getValue: function () {
-    return this.instanceMeta.getValue();
-  },
-
-  setupObservers: function (dependentArray, dependentKey) {
-    this.dependentKeysByGuid[guidFor(dependentArray)] = dependentKey;
-
-    dependentArray.addArrayObserver(this, {
-      willChange: 'dependentArrayWillChange',
-      didChange: 'dependentArrayDidChange'
-    });
-
-    if (this.cp._itemPropertyKeys[dependentKey]) {
-      this.setupPropertyObservers(dependentKey, this.cp._itemPropertyKeys[dependentKey]);
-    }
-  },
-
-  teardownObservers: function (dependentArray, dependentKey) {
-    var itemPropertyKeys = this.cp._itemPropertyKeys[dependentKey] || [];
-
-    delete this.dependentKeysByGuid[guidFor(dependentArray)];
-
-    this.teardownPropertyObservers(dependentKey, itemPropertyKeys);
-
-    dependentArray.removeArrayObserver(this, {
-      willChange: 'dependentArrayWillChange',
-      didChange: 'dependentArrayDidChange'
-    });
-  },
-
-  suspendArrayObservers: function (callback, binding) {
-    var oldSuspended = this.suspended;
-    this.suspended = true;
-    callback.call(binding);
-    this.suspended = oldSuspended;
-  },
-
-  setupPropertyObservers: function (dependentKey, itemPropertyKeys) {
-    var dependentArray = get(this.instanceMeta.context, dependentKey);
-    var length = get(dependentArray, 'length');
-    var observerContexts = new Array(length);
-
-    this.resetTransformations(dependentKey, observerContexts);
-
-    forEach(dependentArray, function (item, index) {
-      var observerContext = this.createPropertyObserverContext(dependentArray, index, this.trackedArraysByGuid[dependentKey]);
-      observerContexts[index] = observerContext;
-
-      forEach(itemPropertyKeys, function (propertyKey) {
-        addBeforeObserver(item, propertyKey, this, observerContext.beforeObserver);
-        addObserver(item, propertyKey, this, observerContext.observer);
-      }, this);
-    }, this);
-  },
-
-  teardownPropertyObservers: function (dependentKey, itemPropertyKeys) {
-    var dependentArrayObserver = this;
-    var trackedArray = this.trackedArraysByGuid[dependentKey];
-    var beforeObserver, observer, item;
-
-    if (!trackedArray) { return; }
-
-    trackedArray.apply(function (observerContexts, offset, operation) {
-      if (operation === TrackedArray.DELETE) { return; }
-
-      forEach(observerContexts, function (observerContext) {
-        observerContext.destroyed = true;
-        beforeObserver = observerContext.beforeObserver;
-        observer = observerContext.observer;
-        item = observerContext.item;
-
-        forEach(itemPropertyKeys, function (propertyKey) {
-          removeBeforeObserver(item, propertyKey, dependentArrayObserver, beforeObserver);
-          removeObserver(item, propertyKey, dependentArrayObserver, observer);
-        });
-      });
-    });
-  },
-
-  createPropertyObserverContext: function (dependentArray, index, trackedArray) {
-    var observerContext = new ItemPropertyObserverContext(dependentArray, index, trackedArray);
-
-    this.createPropertyObserver(observerContext);
-
-    return observerContext;
-  },
-
-  createPropertyObserver: function (observerContext) {
-    var dependentArrayObserver = this;
-
-    observerContext.beforeObserver = function (obj, keyName) {
-      return dependentArrayObserver.itemPropertyWillChange(obj, keyName, observerContext.dependentArray, observerContext);
-    };
-
-    observerContext.observer = function (obj, keyName) {
-      return dependentArrayObserver.itemPropertyDidChange(obj, keyName, observerContext.dependentArray, observerContext);
-    };
-  },
-
-  resetTransformations: function (dependentKey, observerContexts) {
-    this.trackedArraysByGuid[dependentKey] = new TrackedArray(observerContexts);
-  },
-
-  trackAdd: function (dependentKey, index, newItems) {
-    var trackedArray = this.trackedArraysByGuid[dependentKey];
-
-    if (trackedArray) {
-      trackedArray.addItems(index, newItems);
-    }
-  },
-
-  trackRemove: function (dependentKey, index, removedCount) {
-    var trackedArray = this.trackedArraysByGuid[dependentKey];
-
-    if (trackedArray) {
-      return trackedArray.removeItems(index, removedCount);
-    }
-
-    return [];
-  },
-
-  updateIndexes: function (trackedArray, array) {
-    var length = get(array, 'length');
-    // OPTIMIZE: we could stop updating once we hit the object whose observer
-    // fired; ie partially apply the transformations
-    trackedArray.apply(function (observerContexts, offset, operation, operationIndex) {
-      // we don't even have observer contexts for removed items, even if we did,
-      // they no longer have any index in the array
-      if (operation === TrackedArray.DELETE) { return; }
-      if (operationIndex === 0 && operation === TrackedArray.RETAIN && observerContexts.length === length && offset === 0) {
-        // If we update many items we don't want to walk the array each time: we
-        // only need to update the indexes at most once per run loop.
-        return;
-      }
-
-      forEach(observerContexts, function (context, index) {
-        context.index = index + offset;
-      });
-    });
-  },
-
-  dependentArrayWillChange: function (dependentArray, index, removedCount, addedCount) {
-    if (this.suspended) { return; }
-
-    var removedItem = this.callbacks.removedItem;
-    var changeMeta;
-    var guid = guidFor(dependentArray);
-    var dependentKey = this.dependentKeysByGuid[guid];
-    var itemPropertyKeys = this.cp._itemPropertyKeys[dependentKey] || [];
-    var length = get(dependentArray, 'length');
-    var normalizedIndex = normalizeIndex(index, length, 0);
-    var normalizedRemoveCount = normalizeRemoveCount(normalizedIndex, length, removedCount);
-    var item, itemIndex, sliceIndex, observerContexts;
-
-    observerContexts = this.trackRemove(dependentKey, normalizedIndex, normalizedRemoveCount);
-
-    function removeObservers(propertyKey) {
-      observerContexts[sliceIndex].destroyed = true;
-      removeBeforeObserver(item, propertyKey, this, observerContexts[sliceIndex].beforeObserver);
-      removeObserver(item, propertyKey, this, observerContexts[sliceIndex].observer);
-    }
-
-    for (sliceIndex = normalizedRemoveCount - 1; sliceIndex >= 0; --sliceIndex) {
-      itemIndex = normalizedIndex + sliceIndex;
-      if (itemIndex >= length) { break; }
-
-      item = dependentArray.objectAt(itemIndex);
-
-      forEach(itemPropertyKeys, removeObservers, this);
-
-      changeMeta = new ChangeMeta(dependentArray, item, itemIndex, this.instanceMeta.propertyName, this.cp, normalizedRemoveCount);
-      this.setValue(removedItem.call(
-        this.instanceMeta.context, this.getValue(), item, changeMeta, this.instanceMeta.sugarMeta));
-    }
-    this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
-  },
-
-  dependentArrayDidChange: function (dependentArray, index, removedCount, addedCount) {
-    if (this.suspended) { return; }
-
-    var addedItem = this.callbacks.addedItem;
-    var guid = guidFor(dependentArray);
-    var dependentKey = this.dependentKeysByGuid[guid];
-    var observerContexts = new Array(addedCount);
-    var itemPropertyKeys = this.cp._itemPropertyKeys[dependentKey];
-    var length = get(dependentArray, 'length');
-    var normalizedIndex = normalizeIndex(index, length, addedCount);
-    var endIndex = normalizedIndex + addedCount;
-    var changeMeta, observerContext;
-
-    forEach(dependentArray.slice(normalizedIndex, endIndex), function (item, sliceIndex) {
-      if (itemPropertyKeys) {
-        observerContext = this.createPropertyObserverContext(dependentArray, normalizedIndex + sliceIndex,
-          this.trackedArraysByGuid[dependentKey]);
-        observerContexts[sliceIndex] = observerContext;
-
-        forEach(itemPropertyKeys, function (propertyKey) {
-          addBeforeObserver(item, propertyKey, this, observerContext.beforeObserver);
-          addObserver(item, propertyKey, this, observerContext.observer);
-        }, this);
-      }
-
-      changeMeta = new ChangeMeta(dependentArray, item, normalizedIndex + sliceIndex, this.instanceMeta.propertyName, this.cp, addedCount);
-      this.setValue(addedItem.call(
-        this.instanceMeta.context, this.getValue(), item, changeMeta, this.instanceMeta.sugarMeta));
-    }, this);
-    this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
-    this.trackAdd(dependentKey, normalizedIndex, observerContexts);
-  },
-
-  itemPropertyWillChange: function (obj, keyName, array, observerContext) {
-    var guid = guidFor(obj);
-
-    if (!this.changedItems[guid]) {
-      this.changedItems[guid] = {
-        array: array,
-        observerContext: observerContext,
-        obj: obj,
-        previousValues: {}
-      };
-    }
-
-    this.changedItems[guid].previousValues[keyName] = get(obj, keyName);
-  },
-
-  itemPropertyDidChange: function (obj, keyName, array, observerContext) {
-    this.flushChanges();
-  },
-
-  _flushChanges: function () {
-    var changedItems = this.changedItems;
-    var key, c, changeMeta;
-
-    for (key in changedItems) {
-      c = changedItems[key];
-      if (c.observerContext.destroyed) {
-        continue;
-      }
-
-      this.updateIndexes(c.observerContext.trackedArray, c.observerContext.dependentArray);
-
-      changeMeta = new ChangeMeta(c.array, c.obj, c.observerContext.index, this.instanceMeta.propertyName, this.cp, changedItems.length, c.previousValues);
-      this.setValue(
-        this.callbacks.removedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
-      this.setValue(
-        this.callbacks.addedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
-    }
-
-    this.changedItems = {};
-    this.callbacks.flushedChanges.call(this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta);
-  },
-
-  flushChanges: function () {
-    run.once(this, this._flushChanges);
-  }
-};
-
-function normalizeIndex(index, length, newItemsOffset) {
-  if (index < 0) {
-    return Math.max(0, length + index);
-  } else if (index < length) {
-    return index;
-  } else /* index > length */ {
-    return Math.min(length - newItemsOffset, index);
-  }
-}
-
-function normalizeRemoveCount(index, length, removedCount) {
-  return Math.min(removedCount, length - index);
-}
-
-function ChangeMeta(dependentArray, item, index, propertyName, property, changedCount, previousValues){
-  this.arrayChanged = dependentArray;
-  this.index = index;
-  this.item = item;
-  this.propertyName = propertyName;
-  this.property = property;
-  this.changedCount = changedCount;
-
-  if (previousValues) {
-    // previous values only available for item property changes
-    this.previousValues = previousValues;
-  }
-}
-
-function addItems(dependentArray, callbacks, cp, propertyName, meta) {
-  forEach(dependentArray, function (item, index) {
-    meta.setValue( callbacks.addedItem.call(
-      this, meta.getValue(), item, new ChangeMeta(dependentArray, item, index, propertyName, cp, dependentArray.length), meta.sugarMeta));
-  }, this);
-  callbacks.flushedChanges.call(this, meta.getValue(), meta.sugarMeta);
-}
-
 function reset(cp, propertyName) {
-  var hadMeta = cp._hasInstanceMeta(this, propertyName);
   var meta = cp._instanceMeta(this, propertyName);
-
-  if (hadMeta) { meta.setValue(cp.resetValue(meta.getValue())); }
-
   if (cp.options.initialize) {
-    cp.options.initialize.call(this, meta.getValue(), {
+    cp.options.initialize.call(this, {
       property: cp,
       propertyName: propertyName
     }, meta.sugarMeta);
   }
+  meta.setValue(
+    cp.initialValue(this)
+  );
 }
 
 function partiallyRecomputeFor(obj, dependentKey) {
@@ -415,45 +58,7 @@ function partiallyRecomputeFor(obj, dependentKey) {
   return EmberArray.detect(value);
 }
 
-function ReduceComputedPropertyInstanceMeta(context, propertyName, initialValue) {
-  this.context = context;
-  this.propertyName = propertyName;
-  this.cache = metaFor(context).cache;
-  this.dependentArrays = {};
-  this.sugarMeta = {};
-  this.initialValue = initialValue;
-}
 
-ReduceComputedPropertyInstanceMeta.prototype = {
-  value: undefined,
-  getValue: function () {
-    var value = this.value;
-
-    if (value !== undefined) {
-      return value;
-    } else {
-      return this.initialValue;
-    }
-  },
-
-  setValue: function(newValue, triggerObservers) {
-    // This lets sugars force a recomputation, handy for very simple
-    // implementations of eg max.
-    if (newValue === this.value) {
-      return;
-    }
-
-    if (triggerObservers) {
-      propertyWillChange(this.context, this.propertyName);
-    }
-
-    this.value = newValue;
-
-    if (triggerObservers) {
-      propertyDidChange(this.context, this.propertyName);
-    }
-  }
-};
 
 /**
   A computed property whose dependent keys are arrays and which is updated with
@@ -480,35 +85,14 @@ function ReduceComputedProperty(options) {
   this.readOnly();
   this.cacheable();
 
-  this.chain = function(method){
-    var chainedCP, dependentKey, args, func;
-
-    dependentKey = [Ember.guidFor(cp)].concat(cp._dependentKeys).join('_');
-    args = [dependentKey].concat(a_slice.call(arguments,1));
-    
-    if (typeof method === 'string') {
-      method = Ember.computed[method];
-    }
-    chainedCP = method.apply(null,args);
-    func = chainedCP.func;
-
-    chainedCP.func = function (propertyName) {
-      if (!chainedCP._hasInstanceMeta(this, propertyName)) {
-        Ember.defineProperty(this, dependentKey, cp);
-      }
-      return func.apply(this, arguments);
-    };
-    return chainedCP;
-  };
-
   this.recomputeOnce = function(propertyName) {
     // What we really want to do is coalesce by <cp, propertyName>.
     // We need a form of `scheduleOnce` that accepts an arbitrary token to
     // coalesce by, in addition to the target and method.
-    run.once(this, recompute, propertyName);
+    run.once(this, setup, propertyName);
   };
 
-  var recompute = function(propertyName) {
+  var setup = function (propertyName) {
     var meta = cp._instanceMeta(this, propertyName);
     var callbacks = cp._callbacks();
 
@@ -548,18 +132,17 @@ function ReduceComputedProperty(options) {
         }
       }, this);
     }, this);
-
+    if(cp.options.hasOwnInitialValue) return;
     forEach(cp._dependentKeys, function(dependentKey) {
       if (!partiallyRecomputeFor(this, dependentKey)) { return; }
 
       var dependentArray = get(this, dependentKey);
 
       if (dependentArray) {
-        addItems.call(this, dependentArray, callbacks, cp, propertyName, meta);
+        DependentArraysObserver.prototype.addItems.call(this, dependentArray, callbacks, cp, propertyName, meta);
       }
     }, this);
   };
-
 
   this.func = function (propertyName) {
     Ember.assert('Computed reduce values require at least one dependent key', cp._dependentKeys);
@@ -569,13 +152,13 @@ function ReduceComputedProperty(options) {
       // hope the array is re-retrieved.
       forEach(cp._dependentKeys, function(dependentKey) {
           addObserver(this, dependentKey, function() {
-              cp.recomputeOnce.call(this, propertyName);
+            cp.recomputeOnce.call(this, propertyName);
           });
       }, this);
-      recompute.call(this, propertyName);
+      setup.call(this, propertyName);
     }
-    if(cp._instanceMeta(this, propertyName).value === undefined){
-      recompute.call(this, propertyName);
+    if(cp._instanceMeta(this, propertyName).shouldRecompute()){
+      reset.call(this, cp, propertyName);
     }
     return cp._instanceMeta(this, propertyName).getValue();
  };
@@ -594,6 +177,7 @@ ReduceComputedProperty.prototype._callbacks = function () {
     this.callbacks = {
       removedItem: options.removedItem || defaultCallback,
       addedItem: options.addedItem || defaultCallback,
+      propertyChanged: options.propertyChanged,
       flushedChanges: options.flushedChanges || defaultCallback
     };
   }
@@ -610,24 +194,20 @@ ReduceComputedProperty.prototype._instanceMeta = function (context, propertyName
   var meta = cacheMeta[propertyName];
 
   if (!meta) {
-    meta = cacheMeta[propertyName] = new ReduceComputedPropertyInstanceMeta(context, propertyName, this.initialValue());
+    meta = cacheMeta[propertyName] = new ReduceComputedPropertyInstanceMeta(context, propertyName);
     meta.dependentArraysObserver = new DependentArraysObserver(this._callbacks(), this, meta, context, propertyName, meta.sugarMeta);
   }
 
   return meta;
 };
 
-ReduceComputedProperty.prototype.initialValue = function () {
+ReduceComputedProperty.prototype.initialValue = function (context) {
   if (typeof this.options.initialValue === 'function') {
-    return this.options.initialValue();
+    return this.options.initialValue.call(context, this);
   }
   else {
     return this.options.initialValue;
   }
-};
-
-ReduceComputedProperty.prototype.resetValue = function (value) {
-  return this.initialValue();
 };
 
 ReduceComputedProperty.prototype.itemPropertyKey = function (dependentArrayKey, itemPropertyKey) {
@@ -745,14 +325,6 @@ ReduceComputedProperty.prototype.property = function () {
   For property changes triggered on an item property change (when
   depKey is something like `someArray.@each.someProperty`),
   `changeMeta` will also contain the following property:
-
-    - `previousValues` an object whose keys are the properties that changed on
-    the item, and whose values are the item's previous values.
-
-  `previousValues` is important Ember coalesces item property changes via
-  Ember.run.once. This means that by the time removedItem gets called, item has
-  the new values, but you may need the previous value (eg for sorting &
-  filtering).
 
   `instanceMeta` - An object that can be used to store meta
   information needed for calculating your computed. For example a

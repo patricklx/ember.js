@@ -14,13 +14,9 @@ function ArrayComputedProperty() {
 
 ArrayComputedProperty.prototype = o_create(ReduceComputedProperty.prototype);
 
-ArrayComputedProperty.prototype.initialValue = function () {
-  return Ember.A();
-};
-
-ArrayComputedProperty.prototype.resetValue = function (array) {
-  array.clear();
-  return array;
+ArrayComputedProperty.prototype._initialValue = ArrayComputedProperty.prototype.initialValue;
+ArrayComputedProperty.prototype.initialValue = function (context) {
+  return this._initialValue(context) || Ember.A();
 };
 
 // This is a stopgap to keep the reference counts correct with lazy CPs.
