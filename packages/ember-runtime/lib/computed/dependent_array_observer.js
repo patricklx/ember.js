@@ -66,6 +66,17 @@ function DependentArraysObserver(callbacks, cp, instanceMeta, context, propertyN
 }
 
 DependentArraysObserver.prototype = {
+
+  addItems: function(dependentArray, callbacks, cp, propertyName, meta) {
+    var changeMeta = {};
+    forEach(dependentArray, function (item, index) {
+      ChangeMeta.call(changeMeta, dependentArray, item, index, propertyName, cp, dependentArray.length);
+      meta.setValue( callbacks.addedItem.call(
+        this, meta.getValue(), item, changeMeta, meta.sugarMeta));
+    }, this);
+    callbacks.flushedChanges.call(this, meta.getValue(), meta.sugarMeta);
+  },
+
   setValue: function (newValue) {
     this.instanceMeta.setValue(newValue, true);
   },

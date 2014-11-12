@@ -71,16 +71,6 @@ function partiallyRecomputeFor(obj, dependentKey) {
   @constructor
 */
 
-function addItems(dependentArray, callbacks, cp, propertyName, meta) {
-  var changeMeta = {};
-  forEach(dependentArray, function (item, index) {
-    ChangeMeta.call(changeMeta, dependentArray, item, index, propertyName, cp, dependentArray.length);
-    meta.setValue( callbacks.addedItem.call(
-      this, meta.getValue(), item, changeMeta, meta.sugarMeta));
-  }, this);
-  callbacks.flushedChanges.call(this, meta.getValue(), meta.sugarMeta);
-}
-
 export { ReduceComputedProperty }; // TODO: default export
 
 function ReduceComputedProperty(options) {
@@ -152,7 +142,7 @@ function ReduceComputedProperty(options) {
       var dependentArray = get(this, dependentKey);
 
       if (dependentArray) {
-        addItems.call(this, dependentArray, callbacks, cp, propertyName, meta);
+        DependentArraysObserver.addItems.call(this, dependentArray, callbacks, cp, propertyName, meta);
       }
     }, this);
   };
