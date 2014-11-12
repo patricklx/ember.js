@@ -71,6 +71,16 @@ function partiallyRecomputeFor(obj, dependentKey) {
   @constructor
 */
 
+function addItems(dependentArray, callbacks, cp, propertyName, meta) {
+  var changeMeta = {};
+  forEach(dependentArray, function (item, index) {
+    ChangeMeta.call(changeMeta, dependentArray, item, index, propertyName, cp, dependentArray.length);
+    meta.setValue( callbacks.addedItem.call(
+      this, meta.getValue(), item, changeMeta, meta.sugarMeta));
+  }, this);
+  callbacks.flushedChanges.call(this, meta.getValue(), meta.sugarMeta);
+}
+
 export { ReduceComputedProperty }; // TODO: default export
 
 function ReduceComputedProperty(options) {
@@ -97,6 +107,8 @@ function ReduceComputedProperty(options) {
 
   var setup = function (propertyName) {
     var meta = cp._instanceMeta(this, propertyName);
+    var callbacks = cp._callbacks();
+
     reset.call(this, cp, propertyName);
 
     meta.dependentArraysObserver.suspendArrayObservers(function () {
@@ -116,10 +128,10 @@ function ReduceComputedProperty(options) {
           // changed, so we set them up again.  We can't easily tell if they've
           // changed: the array may be the same object, but with different
           // contents.
-          //if (cp._previousItemPropertyKeys[dependentKey]) {
-          //  delete cp._previousItemPropertyKeys[dependentKey];
-          //  meta.dependentArraysObserver.setupPropertyObservers(dependentKey, cp._itemPropertyKeys[dependentKey]);
-          //}
+          if (cp._previousItemPropertyKeys[dependentKey]) {
+            delete cp._previousItemPropertyKeys[dependentKey];
+            meta.dependentArraysObserver.setupPropertyObservers(dependentKey, cp._itemPropertyKeys[dependentKey]);
+          }
         } else {
           meta.dependentArrays[dependentKey] = dependentArray;
 
@@ -133,6 +145,16 @@ function ReduceComputedProperty(options) {
         }
       }, this);
     }, this);
+    if(cp.options.hasOwnInitialValue) return;
+    forEach(cp._dependentKeys, function(dependentKey) {
+      if (!partiallyRecomputeFor(this, dependentKey)) { return; }
+
+      var dependentArray = get(this, dependentKey);
+
+      if (dependentArray) {
+        addItems.call(this, dependentArray, callbacks, cp, propertyName, meta);
+      }
+    }, this);
   };
 
   this.func = function (propertyName) {
@@ -144,9 +166,7 @@ function ReduceComputedProperty(options) {
       forEach(cp._dependentKeys, function(dependentKey) {
           addObserver(this, dependentKey, function() {
             var meta = cp._instanceMeta(this, propertyName);
-            if(meta.dependentArrays[dependentKey] !== get(this, dependentKey)){
               cp.recomputeOnce.call(this, propertyName);
-            }
           });
       }, this);
       setup.call(this, propertyName);
@@ -171,7 +191,7 @@ ReduceComputedProperty.prototype._callbacks = function () {
     this.callbacks = {
       removedItem: options.removedItem || defaultCallback,
       addedItem: options.addedItem || defaultCallback,
-      propertyChanged: options.propertyChanged || defaultCallback,
+      propertyChanged: options.propertyChanged,
       flushedChanges: options.flushedChanges || defaultCallback
     };
   }

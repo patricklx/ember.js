@@ -256,13 +256,28 @@ DependentArraysObserver.prototype = {
   _flushChanges: function () {
     var changedItems = this.changedItems;
     var key, c, changeMeta = {};
+    var callback;
+
+    if(this.callbacks.propertyChanged){
+      callback = function(){
+        this.setValue(
+          this.callbacks.propertyChanged.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
+      }
+    }else{
+      callback = function(){
+        this.setValue(
+          this.callbacks.removedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
+        this.setValue(
+          this.callbacks.addedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
+      }
+    }
 
     for (key in changedItems) {
       c = changedItems[key];
 
       ChangeMeta.call(changeMeta, c.array, c.obj, c.observerContext.index, this.instanceMeta.propertyName, this.cp, changedItems.length);
-      this.setValue(
-        this.callbacks.propertyChanged.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
+      callback.call(this);
+
     }
 
     this.changedItems = {};

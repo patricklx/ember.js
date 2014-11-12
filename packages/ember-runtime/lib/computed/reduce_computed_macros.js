@@ -35,9 +35,7 @@ var a_slice = [].slice;
 
 export function sum(dependentKey){
   return reduceComputed(dependentKey, {
-    initialValue: function (cp) {
-      return this.get(dependentKey).reduce(cp.callbacks.addedItem, 0);
-    },
+    initialValue: 0,
 
     addedItem: function(accumulatedValue, item, changeMeta, instanceMeta){
       return accumulatedValue + item;
@@ -84,9 +82,7 @@ export function sum(dependentKey){
 */
 export function max(dependentKey) {
   return reduceComputed(dependentKey, {
-    initialValue: function(options){
-      return this.get('dependentKey').reduce(options.addedItem, -Infinity);
-    },
+    initialValue: -Infinity,
 
     addedItem: function (accumulatedValue, item, changeMeta, instanceMeta) {
       return Math.max(accumulatedValue, item);
@@ -135,9 +131,7 @@ export function max(dependentKey) {
 */
 export function min(dependentKey) {
   return reduceComputed(dependentKey, {
-    initialValue: function(options){
-      return this.get('dependentKey').reduce(options.addedItem, +Infinity);
-    },
+    initialValue: Infinity,
 
     addedItem: function (accumulatedValue, item, changeMeta, instanceMeta) {
       return Math.min(accumulatedValue, item);
@@ -300,20 +294,10 @@ export function filter(dependentKey, callback, needIndex) {
 
     initialize: function (changeMeta, instanceMeta) {
       instanceMeta.filteredArrayIndexes = new SubArray();
-      var a = [];
-      this.get(changeMeta.property._dependentKeys[0]).forEach(function(item){
-        var match = !!callback.call(this, item, changeMeta.index);
-        instanceMeta.filteredArrayIndexes.addItem(changeMeta.index, match);
-        if(match){
-          a.push(item);
-        }
-      });
-      changeMeta.property.options.initialValue = a;
     },
 
     addedItem: function (array, item, changeMeta, instanceMeta) {
       var match = !!callback.call(this, item, changeMeta.index);
-
       var filterIndex = instanceMeta.filteredArrayIndexes.addItem(changeMeta.index, match);
 
       if (match) {
@@ -441,13 +425,6 @@ export function uniq() {
   args.push({
     initialize: function(changeMeta, instanceMeta) {
       instanceMeta.itemCounts = {};
-      var cp = changeMeta.property;
-      var array = this.get(cp._dependentKeys[0]);
-      var uniqArray = [];
-      array.forEach(function (item) {
-        cp.callbacks.addedItem(uniqArray, item,{}, instanceMeta);
-      });
-      cp.options.initialValue = uniqArray;
     },
 
     addedItem: function(array, item, changeMeta, instanceMeta) {
@@ -756,6 +733,8 @@ export function sort(itemsKey, sortDefinition) {
 
 function customSort(itemsKey, comparator) {
   return arrayComputed(itemsKey, {
+    hasOwnInitialValue: true,
+
     initialize: function (changeMeta, instanceMeta) {
       var sortedArray;
       var depKeys = changeMeta.property._dependentKeys;
