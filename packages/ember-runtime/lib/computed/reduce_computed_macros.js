@@ -182,10 +182,6 @@ export function map(dependentKey, callback) {
   var options = {
     needIndex: true,
 
-    initialize: function (changeMeta, instanceMeta) {
-      instanceMeta.pendingRemove = {}
-    },
-
     initialValue: function (cp) {
       return this.get(cp._dependentKeys[0]).map(callback);
     },

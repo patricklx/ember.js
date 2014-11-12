@@ -273,14 +273,14 @@ DependentArraysObserver.prototype = {
       callback = function(){
         this.setValue(
           this.callbacks.propertyChanged.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
-      }
+      };
     }else{
       callback = function(){
         this.setValue(
           this.callbacks.removedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
         this.setValue(
           this.callbacks.addedItem.call(this.instanceMeta.context, this.getValue(), c.obj, changeMeta, this.instanceMeta.sugarMeta));
-      }
+      };
     }
 
     for (key in changedItems) {
