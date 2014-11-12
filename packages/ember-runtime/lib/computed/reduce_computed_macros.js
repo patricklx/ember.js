@@ -884,8 +884,8 @@ export function chain (dependentKey, computedChains) {
       for (var k in dependantCPs) {
         var cp = dependantCPs[k];
         Ember.defineProperty(this, k, cp);
-        this.__ember_meta__.cacheMeta['chain-'+propertyName] = true;
       }
+      this.__ember_meta__.cacheMeta['chain-'+propertyName] = true;
     }
     return func.apply(this, arguments);
   };
