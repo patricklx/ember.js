@@ -311,23 +311,6 @@ export function filter(dependentKey, callback, needIndex) {
       }
 
       return array;
-    },
-
-    propertyChanged: function (array, item, changeMeta, instanceMeta) {
-      var match = !!callback.call(this, item, changeMeta.index), filterIndex;
-      if(!match){
-        filterIndex = instanceMeta.filteredArrayIndexes.removeItem(changeMeta.index);
-
-        if (filterIndex > -1) {
-          array.removeAt(filterIndex);
-        }
-      }else{
-        filterIndex = instanceMeta.filteredArrayIndexes.addItem(changeMeta.index, match);
-        array.removeAt(filterIndex);
-        array.insertAt(filterIndex, item);
-      }
-
-      return array;
     }
   };
 
@@ -729,15 +712,12 @@ export function sort(itemsKey, sortDefinition) {
 
 function customSort(itemsKey, comparator) {
   return arrayComputed(itemsKey, {
-    hasOwnInitialValue: true,
 
     initialize: function (changeMeta, instanceMeta) {
       var sortedArray;
       var depKeys = changeMeta.property._dependentKeys;
       var sourceArray = this.get(depKeys[0]);
       sortedArray = sourceArray.toArray();
-      sortedArray.sort(comparator);
-      changeMeta.property.options.initialValue = sortedArray;
 
       instanceMeta.order = comparator;
       instanceMeta.binarySearch = binarySearch;
