@@ -219,7 +219,7 @@ DependentArraysObserver.prototype = {
 
     if( observerContexts && this.needIndex ){
       observerContexts.splice(index, removedCount);
-      for(itemIndex = index; observerContexts.length < itemIndex; itemIndex++){
+      for(itemIndex = index; itemIndex < observerContexts.length; itemIndex++){
         observerContexts[itemIndex].index = itemIndex;
       }
     }
@@ -258,8 +258,8 @@ DependentArraysObserver.prototype = {
         this.instanceMeta.context, this.getValue(), item, changeMeta, this.instanceMeta.sugarMeta));
     }
     if( observerContexts && this.needIndex ){
-      observerContexts.splice(index, 0, observerContextsToAdd);
-      for(itemIndex = index; observerContexts.length < itemIndex; itemIndex++){
+      Array.splice.apply(observerContexts, [0].concat(observerContextsToAdd));
+      for(itemIndex = index; itemIndex < observerContexts.length; itemIndex++){
         observerContexts[itemIndex].index = itemIndex;
       }
     }
