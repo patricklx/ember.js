@@ -198,13 +198,8 @@ export function map(dependentKey, callback) {
     removedItem: function(array, item, changeMeta, instanceMeta) {
       array.removeAt(changeMeta.index);
       return array;
-    },
-
-    propertyChanged: function (array, item, changeMeta, instanceMeta) {
-      var mapped = callback.call(this, item, changeMeta.index);
-      array.replace(changeMeta.index, 1,[mapped]);
-      return array;
     }
+
   };
 
   return arrayComputed(dependentKey, options);
@@ -315,25 +310,8 @@ export function filter(dependentKey, callback, needIndex) {
       }
 
       return array;
-    },
-
-    propertyChanged: function (array, item, changeMeta, instanceMeta) {
-      var match = !!callback.call(this, item, changeMeta.index), filterIndex;
-      if(!match){
-        filterIndex = instanceMeta.filteredArrayIndexes.removeItem(changeMeta.index);
-
-        if (filterIndex > -1) {
-          array.removeAt(filterIndex);
-        }
-      }else{
-        filterIndex = instanceMeta.filteredArrayIndexes.addItem(changeMeta.index, match);
-        if (filterIndex > -1) {
-          array.replace(filterIndex, 1, item);
-        }
-      }
-
-      return array;
     }
+
   };
 
   return arrayComputed(dependentKey, options);
@@ -734,16 +712,8 @@ export function sort(itemsKey, sortDefinition) {
 
 function customSort(itemsKey, comparator) {
   return arrayComputed(itemsKey, {
-    hasOwnInitialValue: true,
 
     initialize: function (changeMeta, instanceMeta) {
-      var sortedArray;
-      var depKeys = changeMeta.property._dependentKeys;
-      var sourceArray = this.get(depKeys[0]);
-      sortedArray = sourceArray.toArray();
-      sortedArray.sort(comparator);
-      changeMeta.property.options.initialValue = sortedArray;
-
       instanceMeta.order = comparator;
       instanceMeta.binarySearch = binarySearch;
       instanceMeta.waitingInsertions = [];

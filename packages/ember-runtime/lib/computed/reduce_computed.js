@@ -45,7 +45,7 @@ function reset(cp, propertyName) {
     }, meta.sugarMeta);
   }
   meta.setValue(
-    cp.initialValue(this)
+    cp.initialValue(this, meta)
   );
 }
 
@@ -92,7 +92,7 @@ function ReduceComputedProperty(options) {
     run.once(this, setup, propertyName);
   };
 
-  var setup = function (propertyName) {
+  var setup = function (propertyName, firstSetup) {
     var meta = cp._instanceMeta(this, propertyName);
     var callbacks = cp._callbacks();
 
@@ -132,16 +132,20 @@ function ReduceComputedProperty(options) {
         }
       }, this);
     }, this);
-    if(cp.options.hasOwnInitialValue) return;
-    forEach(cp._dependentKeys, function(dependentKey) {
-      if (!partiallyRecomputeFor(this, dependentKey)) { return; }
+    if(!cp.options.hasOwnInitialValue){
+      forEach(cp._dependentKeys, function(dependentKey) {
+        if (!partiallyRecomputeFor(this, dependentKey)) { return; }
 
-      var dependentArray = get(this, dependentKey);
+        var dependentArray = get(this, dependentKey);
 
-      if (dependentArray) {
-        DependentArraysObserver.prototype.addItems.call(this, dependentArray, callbacks, cp, propertyName, meta);
-      }
-    }, this);
+        if (dependentArray) {
+          DependentArraysObserver.prototype.addItems.call(this, dependentArray, callbacks, cp, propertyName, meta);
+        }
+      }, this);
+    }
+    if(!firstSetup){
+      meta.dependentArraysObserver.notifyPropertyChangeIfRequired();
+    }
   };
 
   this.func = function (propertyName) {
@@ -150,12 +154,13 @@ function ReduceComputedProperty(options) {
       // When we recompute an array computed property, we need already
       // retrieved arrays to be updated; we can't simply empty the cache and
       // hope the array is re-retrieved.
+      setup.call(this, propertyName, true);
+
       forEach(cp._dependentKeys, function(dependentKey) {
           addObserver(this, dependentKey, function() {
             cp.recomputeOnce.call(this, propertyName);
           });
       }, this);
-      setup.call(this, propertyName);
     }
     if(cp._instanceMeta(this, propertyName).shouldRecompute()){
       reset.call(this, cp, propertyName);
@@ -201,9 +206,9 @@ ReduceComputedProperty.prototype._instanceMeta = function (context, propertyName
   return meta;
 };
 
-ReduceComputedProperty.prototype.initialValue = function (context) {
+ReduceComputedProperty.prototype.initialValue = function (context, meta) {
   if (typeof this.options.initialValue === 'function') {
-    return this.options.initialValue.call(context, this);
+    return this.options.initialValue.call(context, this, meta);
   }
   else {
     return this.options.initialValue;

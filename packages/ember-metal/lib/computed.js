@@ -508,6 +508,7 @@ ComputedPropertyPrototype.chain = function(method){
     if (!this.__ember_meta__.cacheMeta['chain-'+propertyName]) {
       this.__ember_meta__.cacheMeta['chain-'+propertyName] = true;
       defineProperty(this, dependentKey, cp);
+      this.get(dependentKey);
     }
     return func.apply(this, arguments);
   };

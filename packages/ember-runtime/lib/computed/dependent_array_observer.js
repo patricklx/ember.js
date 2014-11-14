@@ -186,6 +186,11 @@ DependentArraysObserver.prototype = {
     var dependentKey = this.dependentKeysByGuid[guid];
     var itemPropertyKeys = this.cp._itemPropertyKeys[dependentKey] || [];
     var item, itemIndex, observerContexts;
+    var maxIndex = index + removedCount;
+    var len = get(dependentArray, 'length');
+    if(maxIndex >= len){
+      maxIndex = len;
+    }
 
     //e.g. replace(0,1,[object]) in empty array
     if(!(index in dependentArray)){
@@ -201,7 +206,7 @@ DependentArraysObserver.prototype = {
       removeObserver(item, propertyKey, this, observerContexts[itemIndex].observer);
     }
 
-    for (itemIndex = index; itemIndex < index + removedCount; itemIndex++) {
+    for (itemIndex = index; itemIndex < maxIndex; itemIndex++) {
 
       item = dependentArray.objectAt(itemIndex);
 
@@ -227,16 +232,22 @@ DependentArraysObserver.prototype = {
     var guid = guidFor(dependentArray);
     var dependentKey = this.dependentKeysByGuid[guid];
     var observerContexts = this.observersContextByGuid[guid];
+    var observerContextsToAdd = [];
     var itemPropertyKeys = this.cp._itemPropertyKeys[dependentKey];
     var changeMeta = {}, observerContext, itemIndex, item;
+    var maxIndex = index + addedCount;
+    var len = get(dependentArray, 'length');
+    if(maxIndex >= len){
+      maxIndex = len;
+    }
 
-    for (itemIndex = index; itemIndex < index + addedCount; itemIndex++) {
+    for (itemIndex = index; itemIndex < maxIndex; itemIndex++) {
 
       item = dependentArray.objectAt(itemIndex);
 
       if (itemPropertyKeys) {
         observerContext = this.createPropertyObserverContext(dependentArray, itemIndex);
-        observerContexts[itemIndex] = observerContext;
+        observerContextsToAdd.push(observerContext);
         forEach(itemPropertyKeys, function (propertyKey) {
           addObserver(item, propertyKey, this, observerContext.observer);
         }, this);
@@ -246,7 +257,12 @@ DependentArraysObserver.prototype = {
       this.setValue(addedItem.call(
         this.instanceMeta.context, this.getValue(), item, changeMeta, this.instanceMeta.sugarMeta));
     }
-
+    if( observerContexts && this.needIndex ){
+      observerContexts.splice(index, 0, observerContextsToAdd);
+      for(itemIndex = index; observerContexts.length < itemIndex; itemIndex++){
+        observerContexts[itemIndex].index = itemIndex;
+      }
+    }
     this.setValue( this.callbacks.flushedChanges.call(
         this.instanceMeta.context, this.getValue(), this.instanceMeta.sugarMeta)
     );
