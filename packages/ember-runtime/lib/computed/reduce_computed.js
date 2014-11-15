@@ -142,7 +142,7 @@ function ReduceComputedProperty(options) {
         var dependentArray = get(this, dependentKey);
 
         if (dependentArray) {
-          DependentArraysObserver.addItems.call(this, dependentArray, callbacks, cp, propertyName, meta);
+          DependentArraysObserver.prototype.addItems.call(this, dependentArray, callbacks, cp, propertyName, meta);
         }
       }, this);
     }
