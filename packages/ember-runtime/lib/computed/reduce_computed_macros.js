@@ -284,7 +284,7 @@ export function filter(dependentKey, callback, needIndex) {
   var options = {
     needIndex: true,
 
-    initialize: function (changeMeta, instanceMeta) {
+    initialize: function (array, changeMeta, instanceMeta) {
       instanceMeta.filteredArrayIndexes = new SubArray();
     },
 
