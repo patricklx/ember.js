@@ -206,7 +206,8 @@ DependentArraysObserver.prototype = {
       }
     }
 
-    for (itemIndex = index; itemIndex < maxIndex; itemIndex++) {
+    //start from end, so filters work
+    for (itemIndex = maxIndex-1; itemIndex >= index ; itemIndex--) {
 
       item = dependentArray.objectAt(itemIndex);
 
@@ -219,7 +220,7 @@ DependentArraysObserver.prototype = {
         this.instanceMeta.context, this.getValue(), item, changeMeta, this.instanceMeta.sugarMeta));
     }
 
-    if( observerContexts && this.needIndex ){
+    if( observerContexts && this.needIndex && index <= observerContexts.length-1 ){
       observerContexts.splice(index, removedCount);
       for(itemIndex = index; itemIndex < observerContexts.length; itemIndex++){
         observerContexts[itemIndex].index = itemIndex;
@@ -239,7 +240,7 @@ DependentArraysObserver.prototype = {
     var changeMeta = {}, observerContext, itemIndex, item;
     var maxIndex = index + addedCount;
     var len = get(dependentArray, 'length');
-    if(maxIndex >= len){
+    if(maxIndex > len){
       maxIndex = len;
     }
 
@@ -257,9 +258,9 @@ DependentArraysObserver.prototype = {
       this.setValue(addedItem.call(
         this.instanceMeta.context, this.getValue(), item, changeMeta, this.instanceMeta.sugarMeta));
     }
-    if( observerContexts && this.needIndex ){
-      Array.splice.apply(observerContexts, [0].concat(observerContextsToAdd));
-      for(itemIndex = index; itemIndex < observerContexts.length; itemIndex++){
+    if( observerContextsToAdd.length && this.needIndex){
+      Array.prototype.splice.apply(observerContexts, [index, 0].concat(observerContextsToAdd));
+      for(itemIndex = index+addedCount; itemIndex < observerContexts.length; itemIndex++){
         observerContexts[itemIndex].index = itemIndex;
       }
     }

@@ -182,10 +182,6 @@ export function map(dependentKey, callback) {
   var options = {
     needIndex: true,
 
-    initialValue: function (cp) {
-      return this.get(cp._dependentKeys[0]).map(callback);
-    },
-
     addedItem: function(array, item, changeMeta, instanceMeta) {
       var mapped = callback.call(this, item, changeMeta.index);
       array.insertAt(changeMeta.index, mapped);
@@ -402,7 +398,7 @@ export function uniq() {
   var args = a_slice.call(arguments);
 
   args.push({
-    initialize: function(changeMeta, instanceMeta) {
+    initialize: function(array, changeMeta, instanceMeta) {
       instanceMeta.itemCounts = {};
     },
 
@@ -470,7 +466,7 @@ export function intersect() {
   var args = a_slice.call(arguments);
 
   args.push({
-    initialize: function ( changeMeta, instanceMeta) {
+    initialize: function (array, changeMeta, instanceMeta) {
       instanceMeta.itemCounts = {};
     },
 
@@ -712,13 +708,7 @@ export function sort(itemsKey, sortDefinition) {
 
 function customSort(itemsKey, comparator) {
   return arrayComputed(itemsKey, {
-
-    initialize: function (changeMeta, instanceMeta) {
-      var sortedArray;
-      var depKeys = changeMeta.property._dependentKeys;
-      var sourceArray = this.get(depKeys[0]);
-      sortedArray = sourceArray.toArray();
-
+    initialize: function (array, changeMeta, instanceMeta) {
       instanceMeta.order = comparator;
       instanceMeta.binarySearch = binarySearch;
       instanceMeta.waitingInsertions = [];
@@ -728,8 +718,8 @@ function customSort(itemsKey, comparator) {
         instanceMeta.waitingInsertions = [];
         for (var i=0; i<waiting.length; i++) {
           item = waiting[i];
-          index = instanceMeta.binarySearch(sortedArray, item);
-          sortedArray.insertAt(index, item);
+          index = instanceMeta.binarySearch(array, item);
+          array.insertAt(index, item);
         }
       };
       instanceMeta.insertLater = function(item) {

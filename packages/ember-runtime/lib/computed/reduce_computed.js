@@ -39,15 +39,15 @@ function get(obj, key) {
 
 function reset(cp, propertyName) {
   var meta = cp._instanceMeta(this, propertyName);
+  meta.setValue(
+    cp.initialValue(this, meta)
+  );
   if (cp.options.initialize) {
-    cp.options.initialize.call(this, {
+    cp.options.initialize.call(this, meta.getValue(), {
       property: cp,
       propertyName: propertyName
     }, meta.sugarMeta);
   }
-  meta.setValue(
-    cp.initialValue(this, meta)
-  );
 }
 
 function partiallyRecomputeFor(obj, dependentKey) {
