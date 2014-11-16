@@ -124,6 +124,7 @@ DependentArraysObserver.prototype = {
   setupPropertyObservers: function (dependentKey, itemPropertyKeys) {
     run.next(this, function () {
       var dependentArray = get(this.instanceMeta.context, dependentKey);
+      if(!dependentArray) return;
       var length = get(dependentArray, 'length');
       var observerContexts;
 
