@@ -120,7 +120,7 @@ function ReduceComputedProperty(options) {
           // contents.
           if (cp._previousItemPropertyKeys[dependentKey]) {
             delete cp._previousItemPropertyKeys[dependentKey];
-            meta.dependentArraysObserver.setupPropertyObservers(dependentKey, cp._itemPropertyKeys[dependentKey]);
+            meta.dependentArraysObserver.setupPropertyObservers(dependentArray, cp._itemPropertyKeys[dependentKey]);
           }
         } else {
           meta.dependentArrays[dependentKey] = dependentArray;
