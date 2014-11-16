@@ -191,17 +191,16 @@ DependentArraysObserver.prototype = {
       maxIndex = len;
     }
 
-    //e.g. replace(0,1,[object]) in empty array
-    if(!(index in dependentArray)){
-      return;
-    }
-
     if(itemPropertyKeys.length){
       observerContexts = this.observersContextByGuid[guid];
     }
 
     function removeObservers(propertyKey) {
       if(itemIndex in observerContexts){
+        var g = guidFor(item);
+        if (g in this.changedItems){
+          delete this.changedItems[g];
+        }
         removeObserver(item, propertyKey, this, observerContexts[itemIndex].observer);
       }
     }
