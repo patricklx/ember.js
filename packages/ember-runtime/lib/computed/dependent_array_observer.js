@@ -97,7 +97,7 @@ DependentArraysObserver.prototype = {
     });
 
     if (this.cp._itemPropertyKeys[dependentKey]) {
-      this.setupPropertyObservers(dependentKey, this.cp._itemPropertyKeys[dependentKey]);
+      this.setupPropertyObservers(dependentArray, this.cp._itemPropertyKeys[dependentKey]);
     }
   },
 
@@ -121,9 +121,7 @@ DependentArraysObserver.prototype = {
     this.suspended = oldSuspended;
   },
 
-  setupPropertyObservers: function (dependentKey, itemPropertyKeys) {
-    run.next(this, function () {
-      var dependentArray = get(this.instanceMeta.context, dependentKey);
+  setupPropertyObservers: function (dependentArray, itemPropertyKeys) {
       if(!dependentArray) return;
       var length = get(dependentArray, 'length');
       var observerContexts;
@@ -138,7 +136,6 @@ DependentArraysObserver.prototype = {
           addObserver(item, propertyKey, this, observerContext.observer);
         }, this);
       }, this);
-    });
   },
 
   teardownPropertyObservers: function (dependentArray, dependentKey, itemPropertyKeys) {
