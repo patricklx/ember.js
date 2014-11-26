@@ -268,12 +268,9 @@ var ContainerView = View.extend(MutableArray, {
     var dom = buffer.dom;
 
     if (this.tagName === '') {
-      if (this._morph) {
-        this._childViewsMorph = this._morph;
-      } else {
-        element = dom.createDocumentFragment();
-        this._childViewsMorph = dom.appendMorph(element);
-      }
+      element = dom.createDocumentFragment();
+      buffer._element = element;
+      this._childViewsMorph = dom.appendMorph(element, this._morph.contextualElement);
     } else {
       this._childViewsMorph = dom.createMorph(element, element.lastChild, null);
     }
@@ -331,22 +328,18 @@ var ContainerView = View.extend(MutableArray, {
   childViewsDidChange: function(views, start, removed, added) {
     if (added > 0) {
       var changedViews = views.slice(start, start+added);
-      this.initializeViews(changedViews, this, get(this, 'templateData'));
+      this.initializeViews(changedViews, this);
       this.currentState.childViewsDidChange(this, views, start, added);
     }
     this.propertyDidChange('childViews');
   },
 
-  initializeViews: function(views, parentView, templateData) {
+  initializeViews: function(views, parentView) {
     forEach(views, function(view) {
       set(view, '_parentView', parentView);
 
       if (!view.container && parentView) {
         set(view, 'container', parentView.container);
-      }
-
-      if (!get(view, 'templateData')) {
-        set(view, 'templateData', templateData);
       }
     });
   },
