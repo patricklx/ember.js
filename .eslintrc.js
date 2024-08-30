@@ -55,14 +55,45 @@ module.exports = {
         '@typescript-eslint/ban-types': 'off',
         '@typescript-eslint/no-empty-function': 'off',
         '@typescript-eslint/no-this-alias': 'off',
-        '@typescript-eslint/no-var-requires': 'warn',
+        '@typescript-eslint/no-var-requires': 'error',
         '@typescript-eslint/consistent-type-imports': 'error',
+        '@typescript-eslint/no-unused-vars': [
+          'error',
+          {
+            // these are the settings recommneded by typescript-eslint to follow
+            // typescript's own default unused variable naming policies.
+            args: 'all',
+            argsIgnorePattern: '^_',
+            caughtErrors: 'all',
+            caughtErrorsIgnorePattern: '^_',
+            destructuredArrayIgnorePattern: '^_',
+            varsIgnorePattern: '^_',
+            ignoreRestSiblings: true,
+          },
+        ],
+
+        // these default to 'warn' in @typescript-eslint/recommended. But
+        // warnings just get ignored and allowed to generate noise. We should
+        // either commit to makign them errors or leave them off.
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/no-non-null-assertion': 'off',
 
         // TODO: Enable and fix these rules
         // Typescript provides better types with these rules enabled
         'prefer-spread': 'off',
         'prefer-const': 'off',
         'prefer-rest-params': 'off',
+      },
+    },
+    {
+      files: ['packages/**/*.[jt]s'],
+      rules: {
+        'import/no-cycle': [
+          'error',
+          {
+            ignoreExternal: true,
+          },
+        ],
       },
     },
     {
@@ -124,6 +155,9 @@ module.exports = {
       // matches all node-land files
       files: [
         '.eslintrc.js',
+        'rollup.config.mjs',
+        'babel.config.mjs',
+        'babel.test.config.mjs',
         'node-tests/**/*.js',
         'tests/node/**/*.js',
         'blueprints/**/*.js',

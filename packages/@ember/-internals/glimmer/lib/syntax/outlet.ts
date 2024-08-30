@@ -1,8 +1,8 @@
 import type { InternalOwner } from '@ember/-internals/owner';
-import { assert } from '@ember/debug';
+import { assert, deprecate } from '@ember/debug';
 import { DEBUG } from '@glimmer/env';
 import type { CapturedArguments, DynamicScope } from '@glimmer/interfaces';
-import { CurriedType } from '@glimmer/interfaces';
+import { CurriedType } from '@glimmer/vm';
 import type { Reference } from '@glimmer/reference';
 import {
   childRefFromParts,
@@ -16,8 +16,8 @@ import { dict } from '@glimmer/util';
 import type { OutletDefinitionState } from '../component-managers/outlet';
 import { OutletComponentDefinition } from '../component-managers/outlet';
 import { internalHelper } from '../helpers/internal-helper';
-import { isTemplateFactory } from '../template';
 import type { OutletState } from '../utils/outlet';
+import { isTemplateFactory } from '../template';
 
 /**
   The `{{outlet}}` helper lets you specify where a child route will render in
@@ -53,9 +53,7 @@ export const outletHelper = internalHelper(
 
     let outletRef = createComputeRef(() => {
       let state = valueForRef(scope.get('outletState') as Reference<OutletState | undefined>);
-      let outlets = state !== undefined ? state.outlets : undefined;
-
-      return outlets !== undefined ? outlets['main'] : undefined;
+      return state?.outlets?.main;
     });
 
     let lastState: OutletDefinitionState | null = null;
@@ -113,23 +111,53 @@ export const outletHelper = internalHelper(
   }
 );
 
-function stateFor(ref: Reference, outlet: OutletState | undefined): OutletDefinitionState | null {
+function stateFor(
+  ref: Reference<OutletState | undefined>,
+  outlet: OutletState | undefined
+): OutletDefinitionState | null {
   if (outlet === undefined) return null;
   let render = outlet.render;
   if (render === undefined) return null;
   let template = render.template;
   if (template === undefined) return null;
 
-  // this guard can be removed once @ember/test-helpers@1.6.0 has "aged out"
-  // and is no longer considered supported
   if (isTemplateFactory(template)) {
     template = template(render.owner);
+
+    if (DEBUG) {
+      let message =
+        'The `template` property of `OutletState` should be a ' +
+        '`Template` rather than a `TemplateFactory`. This is known to be a ' +
+        "problem in older versions of `@ember/test-helpers`. If you haven't " +
+        'done so already, try upgrading to the latest version.\n\n';
+
+      if (template.result === 'ok' && typeof template.moduleName === 'string') {
+        message +=
+          'The offending template has a moduleName `' +
+          template.moduleName +
+          '`, which might be helpful for identifying ' +
+          'source of this issue.\n\n';
+      }
+
+      message +=
+        'Please note that `OutletState` is a private API in Ember.js ' +
+        "and not meant to be used outside of the framework's internal code.";
+
+      deprecate(message, false, {
+        id: 'outlet-state-template-factory',
+        until: '5.9.0',
+        for: 'ember-source',
+        since: {
+          available: '5.6.0',
+          enabled: '5.6.0',
+        },
+      });
+    }
   }
 
   return {
     ref,
     name: render.name,
-    outlet: render.outlet,
     template,
     controller: render.controller,
     model: render.model,

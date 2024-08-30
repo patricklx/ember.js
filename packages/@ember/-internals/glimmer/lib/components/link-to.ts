@@ -2,13 +2,14 @@ import type Route from '@ember/routing/route';
 import type { RouterState, RoutingService } from '@ember/routing/-internals';
 import { isSimpleClick } from '@ember/-internals/views';
 import { assert, debugFreeze, inspect, warn } from '@ember/debug';
-import { getEngineParent } from '@ember/engine';
-import EngineInstance from '@ember/engine/instance';
+import { getEngineParent } from '@ember/engine/parent';
+import type EngineInstance from '@ember/engine/instance';
 import { flaggedInstrument } from '@ember/instrumentation';
 import { action } from '@ember/object';
 import { service } from '@ember/service';
 import { DEBUG } from '@glimmer/env';
-import type { Maybe, Option } from '@glimmer/interfaces';
+import type { Maybe } from '@glimmer/interfaces';
+import type { Nullable } from '@ember/-internals/utility-types';
 import { consumeTag, createCache, getValue, tagFor, untrack } from '@glimmer/validator';
 import type { Transition } from 'router_js';
 import LinkToTemplate from '../templates/link-to';
@@ -31,7 +32,7 @@ function isPresent<T>(value: Maybe<T>): value is T {
 
 interface QueryParams {
   isQueryParams: true;
-  values: Option<{}>;
+  values: Nullable<{}>;
 }
 
 function isQueryParams(value: unknown): value is QueryParams {
@@ -473,7 +474,7 @@ class _LinkTo extends InternalComponent {
     return this.isActiveForState(this.routing.currentState as Maybe<RouterState>);
   }
 
-  private get willBeActive(): Option<boolean> {
+  private get willBeActive(): Nullable<boolean> {
     let current = this.routing.currentState;
     let target = this.routing.targetState;
 
@@ -493,13 +494,13 @@ class _LinkTo extends InternalComponent {
   }
 
   private get isEngine(): boolean {
-    let owner = this.owner;
-    return owner instanceof EngineInstance && getEngineParent(owner) !== undefined;
+    let owner = this.owner as EngineInstance;
+    return getEngineParent(owner) !== undefined;
   }
 
   private get engineMountPoint(): string | undefined {
-    let owner = this.owner;
-    return owner instanceof EngineInstance ? owner.mountPoint : undefined;
+    let owner = this.owner as EngineInstance;
+    return owner.mountPoint;
   }
 
   private classFor(state: 'active' | 'loading' | 'disabled'): string {
@@ -585,7 +586,7 @@ class _LinkTo extends InternalComponent {
 
 let { prototype } = _LinkTo;
 
-let descriptorFor = (target: object, property: string): Option<PropertyDescriptor> => {
+let descriptorFor = (target: object, property: string): Nullable<PropertyDescriptor> => {
   if (target) {
     return (
       Object.getOwnPropertyDescriptor(target, property) ||
