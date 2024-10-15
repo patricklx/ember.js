@@ -75,8 +75,8 @@
     "@glimmer/opcode-compiler": "0.92.4",
     "@glimmer/owner": "0.92.3",
     "@glimmer/program": "0.92.4",
-    "@glimmer/reference": "0.92.3",
-    "@glimmer/runtime": "0.92.4",
+    "@glimmer/reference": "link:/home/patrick/projects/glimmer-vm/packages/@glimmer/reference",
+    "@glimmer/runtime": "link:/home/patrick/projects/glimmer-vm/packages/@glimmer/runtime",
     "@glimmer/syntax": "0.92.3",
     "@glimmer/util": "0.92.3",
     "@glimmer/validator": "0.92.3",
@@ -171,7 +171,9 @@
   },
   "pnpm": {
     "overrides": {
-      "rollup": "^4.2.0"
+      "rollup": "^4.2.0",
+      "@glimmer/runtime": "file:/home/patrick/projects/glimmer-vm/packages/@glimmer/runtime",
+      "@glimmer/reference": "file:/home/patrick/projects/glimmer-vm/packages/@glimmer/reference"
     }
   },
   "peerDependencies": {

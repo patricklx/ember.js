@@ -7,6 +7,8 @@ settings:
 overrides:
   socket.io: ^4.7.0
   rollup: ^4.2.0
+  '@glimmer/runtime': file:/home/patrick/projects/glimmer-vm/packages/@glimmer/runtime
+  '@glimmer/reference': file:/home/patrick/projects/glimmer-vm/packages/@glimmer/reference
 
 importers:
 
@@ -49,11 +51,11 @@ importers:
         specifier: 0.92.4
         version: 0.92.4
       '@glimmer/reference':
-        specifier: 0.92.3
-        version: 0.92.3
+        specifier: file:/home/patrick/projects/glimmer-vm/packages/@glimmer/reference
+        version: file:../glimmer-vm/packages/@glimmer/reference
       '@glimmer/runtime':
-        specifier: 0.92.4
-        version: 0.92.4
+        specifier: file:/home/patrick/projects/glimmer-vm/packages/@glimmer/runtime
+        version: file:../glimmer-vm/packages/@glimmer/runtime
       '@glimmer/syntax':
         specifier: 0.92.3
         version: 0.92.3
@@ -407,11 +409,11 @@ importers:
         specifier: 0.92.4
         version: 0.92.4
       '@glimmer/reference':
-        specifier: 0.92.3
-        version: 0.92.3
+        specifier: file:/home/patrick/projects/glimmer-vm/packages/@glimmer/reference
+        version: file:../glimmer-vm/packages/@glimmer/reference
       '@glimmer/runtime':
-        specifier: 0.92.4
-        version: 0.92.4
+        specifier: file:/home/patrick/projects/glimmer-vm/packages/@glimmer/runtime
+        version: file:../glimmer-vm/packages/@glimmer/runtime
       '@glimmer/syntax':
         specifier: 0.92.3
         version: 0.92.3
@@ -590,8 +592,8 @@ importers:
         specifier: 0.92.4
         version: 0.92.4
       '@glimmer/runtime':
-        specifier: 0.92.4
-        version: 0.92.4
+        specifier: file:/home/patrick/projects/glimmer-vm/packages/@glimmer/runtime
+        version: file:../glimmer-vm/packages/@glimmer/runtime
       expect-type:
         specifier: ^0.15.0
         version: 0.15.0
@@ -814,8 +816,8 @@ importers:
         specifier: 0.92.4
         version: 0.92.4
       '@glimmer/runtime':
-        specifier: 0.92.4
-        version: 0.92.4
+        specifier: file:/home/patrick/projects/glimmer-vm/packages/@glimmer/runtime
+        version: file:../glimmer-vm/packages/@glimmer/runtime
       expect-type:
         specifier: ^0.15.0
         version: 0.15.0
@@ -862,8 +864,8 @@ importers:
         specifier: 0.92.4
         version: 0.92.4
       '@glimmer/runtime':
-        specifier: 0.92.4
-        version: 0.92.4
+        specifier: file:/home/patrick/projects/glimmer-vm/packages/@glimmer/runtime
+        version: file:../glimmer-vm/packages/@glimmer/runtime
 
   packages/@ember/object:
     dependencies:
@@ -1246,8 +1248,8 @@ importers:
         specifier: 0.92.4
         version: 0.92.4
       '@glimmer/runtime':
-        specifier: 0.92.4
-        version: 0.92.4
+        specifier: file:/home/patrick/projects/glimmer-vm/packages/@glimmer/runtime
+        version: file:../glimmer-vm/packages/@glimmer/runtime
       backburner.js:
         specifier: ^2.7.0
         version: 2.8.0
@@ -1351,8 +1353,8 @@ importers:
         specifier: 0.92.3
         version: 0.92.3
       '@glimmer/runtime':
-        specifier: 0.92.4
-        version: 0.92.4
+        specifier: file:/home/patrick/projects/glimmer-vm/packages/@glimmer/runtime
+        version: file:../glimmer-vm/packages/@glimmer/runtime
       '@glimmer/tracking':
         specifier: workspace:*
         version: link:../@glimmer/tracking
@@ -1450,8 +1452,8 @@ importers:
         specifier: 0.92.4
         version: 0.92.4
       '@glimmer/runtime':
-        specifier: 0.92.4
-        version: 0.92.4
+        specifier: file:/home/patrick/projects/glimmer-vm/packages/@glimmer/runtime
+        version: file:../glimmer-vm/packages/@glimmer/runtime
       '@glimmer/syntax':
         specifier: 0.92.3
         version: 0.92.3
@@ -1615,8 +1617,8 @@ importers:
         specifier: 0.92.3
         version: 0.92.3
       '@glimmer/runtime':
-        specifier: 0.92.4
-        version: 0.92.4
+        specifier: file:/home/patrick/projects/glimmer-vm/packages/@glimmer/runtime
+        version: file:../glimmer-vm/packages/@glimmer/runtime
       '@glimmer/syntax':
         specifier: 0.92.3
         version: 0.92.3
@@ -4653,7 +4655,6 @@ packages:
 
   /@glimmer/global-context@0.92.3:
     resolution: {integrity: sha512-tvlK5pt6oSe3furJ1KsO9vG/KmF9S98HLrcR48XbfwXlkuxvUeS94cdQId4GCN5naeX4OC4xm6eEjZWdc2s+jw==}
-    dev: false
 
   /@glimmer/interfaces@0.84.3:
     resolution: {integrity: sha512-dk32ykoNojt0mvEaIW6Vli5MGTbQo58uy3Epj7ahCgTHmWOKuw/0G83f2UmFprRwFx689YTXG38I/vbpltEjzg==}
@@ -4670,7 +4671,6 @@ packages:
     resolution: {integrity: sha512-QwQeA01N+0h+TAi/J7iUnZtRuJy+093hNyagxDQBA6b1wCBw+q+al9+O6gmbWlkWE7EifzmNE1nnrgcecJBlJQ==}
     dependencies:
       '@simple-dom/interface': 1.4.0
-    dev: false
 
   /@glimmer/manager@0.92.4:
     resolution: {integrity: sha512-YMoarZT/+Ft2YSd+Wuu5McVsdP9y6jeAdVQGYFpno3NlL3TXYbl7ELtK7OGxFLjzQE01BdiUZZRvcY+a/s9+CQ==}
@@ -4680,7 +4680,7 @@ packages:
       '@glimmer/env': 0.1.7
       '@glimmer/global-context': 0.92.3
       '@glimmer/interfaces': 0.92.3
-      '@glimmer/reference': 0.92.3
+      '@glimmer/reference': file:../glimmer-vm/packages/@glimmer/reference
       '@glimmer/util': 0.92.3
       '@glimmer/validator': 0.92.3
       '@glimmer/vm': 0.92.3
@@ -4690,7 +4690,7 @@ packages:
     resolution: {integrity: sha512-a5GME7HQJZFJPQDdSetQI6jjKXXQi0Vdr3WuUrYwhienVTV5LG0uClbFE2yYWC7TX97YDHpRrNk1CC258rujkQ==}
     dependencies:
       '@glimmer/interfaces': 0.92.3
-      '@glimmer/runtime': 0.92.4
+      '@glimmer/runtime': file:../glimmer-vm/packages/@glimmer/runtime
       '@glimmer/util': 0.92.3
       '@simple-dom/document': 1.4.0
     dev: false
@@ -4704,7 +4704,7 @@ packages:
       '@glimmer/global-context': 0.92.3
       '@glimmer/interfaces': 0.92.3
       '@glimmer/manager': 0.92.4
-      '@glimmer/reference': 0.92.3
+      '@glimmer/reference': file:../glimmer-vm/packages/@glimmer/reference
       '@glimmer/util': 0.92.3
       '@glimmer/vm': 0.92.3
       '@glimmer/wire-format': 0.92.3
@@ -4725,43 +4725,6 @@ packages:
       '@glimmer/manager': 0.92.4
       '@glimmer/opcode-compiler': 0.92.4
       '@glimmer/util': 0.92.3
-      '@glimmer/vm': 0.92.3
-      '@glimmer/wire-format': 0.92.3
-    dev: false
-
-  /@glimmer/reference@0.84.3:
-    resolution: {integrity: sha512-lV+p/aWPVC8vUjmlvYVU7WQJsLh319SdXuAWoX/SE3pq340BJlAJiEcAc6q52y9JNhT57gMwtjMX96W5Xcx/qw==}
-    dependencies:
-      '@glimmer/env': 0.1.7
-      '@glimmer/global-context': 0.84.3
-      '@glimmer/interfaces': 0.84.3
-      '@glimmer/util': 0.84.3
-      '@glimmer/validator': 0.84.3
-    dev: true
-
-  /@glimmer/reference@0.92.3:
-    resolution: {integrity: sha512-Ud4LE689mEXL6BJnJx0ZPt2dt/A540C+TAnBFXHpcAjROz5gT337RN+tgajwudEUqpufExhcPSMGzs1pvWYCJg==}
-    dependencies:
-      '@glimmer/env': 0.1.7
-      '@glimmer/global-context': 0.92.3
-      '@glimmer/interfaces': 0.92.3
-      '@glimmer/util': 0.92.3
-      '@glimmer/validator': 0.92.3
-    dev: false
-
-  /@glimmer/runtime@0.92.4:
-    resolution: {integrity: sha512-ISqM/8hVh+fY/gnLAAPKfts4CvnJBOyCYAXgGccIlzzQrSVLaz0NoRiWTLGj5B/3xyPbqLwYPDvlTsOjYtvPoA==}
-    dependencies:
-      '@glimmer/destroyable': 0.92.3
-      '@glimmer/env': 0.1.7
-      '@glimmer/global-context': 0.92.3
-      '@glimmer/interfaces': 0.92.3
-      '@glimmer/manager': 0.92.4
-      '@glimmer/owner': 0.92.3
-      '@glimmer/program': 0.92.4
-      '@glimmer/reference': 0.92.3
-      '@glimmer/util': 0.92.3
-      '@glimmer/validator': 0.92.3
       '@glimmer/vm': 0.92.3
       '@glimmer/wire-format': 0.92.3
     dev: false
@@ -4823,7 +4786,6 @@ packages:
     dependencies:
       '@glimmer/env': 0.1.7
       '@glimmer/interfaces': 0.92.3
-    dev: false
 
   /@glimmer/validator@0.44.0:
     resolution: {integrity: sha512-i01plR0EgFVz69GDrEuFgq1NheIjZcyTy3c7q+w7d096ddPVeVcRzU3LKaqCfovvLJ+6lJx40j45ecycASUUyw==}
@@ -4843,7 +4805,6 @@ packages:
       '@glimmer/global-context': 0.92.3
       '@glimmer/interfaces': 0.92.3
       '@glimmer/util': 0.92.3
-    dev: false
 
   /@glimmer/vm-babel-plugins@0.92.3(@babel/core@7.24.4):
     resolution: {integrity: sha512-VpkKsHc3oiq9ruiwT7sN4RuOIc5n10PCeWX7tYSNZ85S1bETcAFn0XbyNjI+G3uFshQGEK0T8Fn3+/8VTNIQIg==}
@@ -10981,7 +10942,7 @@ packages:
     engines: {node: 12.* || 14.* || >= 16.*}
     hasBin: true
     dependencies:
-      '@glimmer/reference': 0.84.3
+      '@glimmer/reference': file:../glimmer-vm/packages/@glimmer/reference
       '@glimmer/syntax': 0.84.3
       '@glimmer/validator': 0.84.3
       async-promise-queue: 1.0.5
@@ -18833,3 +18794,31 @@ packages:
     transitivePeerDependencies:
       - supports-color
     dev: true
+
+  file:../glimmer-vm/packages/@glimmer/reference:
+    resolution: {directory: ../glimmer-vm/packages/@glimmer/reference, type: directory}
+    name: '@glimmer/reference'
+    dependencies:
+      '@glimmer/env': 0.1.7
+      '@glimmer/global-context': 0.92.3
+      '@glimmer/interfaces': 0.92.3
+      '@glimmer/util': 0.92.3
+      '@glimmer/validator': 0.92.3
+
+  file:../glimmer-vm/packages/@glimmer/runtime:
+    resolution: {directory: ../glimmer-vm/packages/@glimmer/runtime, type: directory}
+    name: '@glimmer/runtime'
+    dependencies:
+      '@glimmer/destroyable': 0.92.3
+      '@glimmer/env': 0.1.7
+      '@glimmer/global-context': 0.92.3
+      '@glimmer/interfaces': 0.92.3
+      '@glimmer/manager': 0.92.4
+      '@glimmer/owner': 0.92.3
+      '@glimmer/program': 0.92.4
+      '@glimmer/reference': file:../glimmer-vm/packages/@glimmer/reference
+      '@glimmer/util': 0.92.3
+      '@glimmer/validator': 0.92.3
+      '@glimmer/vm': 0.92.3
+      '@glimmer/wire-format': 0.92.3
+    dev: false

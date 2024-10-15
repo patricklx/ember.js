@@ -529,10 +529,12 @@ export default class RenderTree {
     return serialized;
   }
 
-  _serializeArgs({ named, positional }: any) {
+  _serializeArgs({ named, positional, refs, tags }: any) {
     return {
       named: this._serializeDict(named),
       positional: this._serializeArray(positional),
+      refs: this._serializeDict(refs),
+      tags: this._serializeDict(tags),
     };
   }
 

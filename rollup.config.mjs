@@ -273,6 +273,7 @@ function entrypoint(pkg, which) {
     return;
   }
   let resolved = resolve(pkg.root, module);
+  console.log('entrypoint', module, pkg.name, pkg.root, resolved);
   let { dir, base } = parse(resolved);
   return {
     dir,
